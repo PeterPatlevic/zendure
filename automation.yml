@@ -7,26 +7,26 @@ trigger:
 
 variables:
   netz: "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
+  netz-abs: "{{ abs(netz) }}"
   soc: "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
-  soc_min: "{{ states('number.solarflow_2400_ac_min_soc') | float(0) }}"
-  soc_eff_min: "{{ states('sensor.zendure_effektives_mindest-soc') | float(0) }}"
+  soc_min: "{{ states('sensor.zendure_effektives_mindest-soc') | float(0) }}"
   soc_max: "{{ states('number.solarflow_2400_ac_soc_set') | float(0) }}"
   profil: "{{ states('sensor.pv_jahreszeitprofil') }}"
   max_entlade: "{{ states('sensor.zendure_max_entladeleistung') | int(0) }}"
 
 action:
   - choose:
-      # 🌙 PROGNOSEABHÄNGIGE NACHTLOGIK
+      # 🌙 Prognoseabhängige Nachtlogik
       - conditions: "{{ is_state('binary_sensor.zendure_nacht', 'on') }}"
         sequence:
           - choose:
               # 🌞 Morgen viel PV → bewusst Platz schaffen
               - conditions: >
                   {{ is_state('sensor.pv_erwartung_morgen_hoch', 'True')
-                     and soc > soc_eff_min }}
+                     and soc > soc_min }}
                 sequence:
                   - choose:
-                      - conditions: "{{ netz < 200 or soc <= (soc_min + 10) }}"
+                      - conditions: "{{ netz < 200 or soc <= soc_min }}"
                         sequence:
                           - service: number.set_value
                             target:
@@ -58,7 +58,7 @@ action:
                      and not is_state('sensor.pv_erwartung_morgen_hoch', 'True') }}
                 sequence:
                   - choose:
-                      - conditions: "{{ netz < 400 or soc <= (soc_min + 10) }}"
+                      - conditions: "{{ netz < 400 or soc <= soc_min }}"
                         sequence:
                           - service: number.set_value
                             target:
@@ -84,11 +84,10 @@ action:
                             data:
                               value: 100
 
-              # ⚖️ Normalfall
-
+            # ⚖️ Normalfall
             default:
               - choose:
-                - conditions: "{{ netz < 300 or soc <= soc_eff_min }}"
+                - conditions: "{{ netz < 300 or soc <= soc_min }}"
                   sequence:
                     - service: number.set_value
                       target:
@@ -130,8 +129,7 @@ action:
             target:
               entity_id: number.solarflow_2400_ac_input_limit
             data:
-              value: >
-                {{ 400 if profil == 'Sommer' else 300 }}
+              value: "{{ 400 if profil == 'Sommer' else 300 }}"
 
       # ⚪ Totband
       - conditions: "{{ -120 <= netz <= -80 }}"
@@ -143,7 +141,7 @@ action:
               value: 0
 
       # 🟡 Feinregelung nahe Nulleinspeisung
-      - conditions: "{{ -80 < netz < 80 and soc > soc_eff_min }}"
+      - conditions: "{{ -80 < netz < 80 and soc > soc_min }}"
         sequence:
           - service: select.select_option
             target:
@@ -157,7 +155,7 @@ action:
               value: 100
 
       # 🟢 Entladen (SoC + Prognose-abhängig)
-      - conditions: "{{ netz >= 80 and soc > soc_eff_min }}"
+      - conditions: "{{ netz >= 80 and soc > soc_min }}"
         sequence:
           - service: select.select_option
             target:
