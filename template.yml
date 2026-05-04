@@ -60,17 +60,29 @@ template:
       # Debug: Warum lädt / entlädt?
       - name: "Zendure Regelstatus"
         state: >
-          {% if states('sensor.nettoleistung_netz_mittelwert') | float(0) < -120 %}
+          {% if is_state('binary_sensor.zendure_nacht', 'on')
+                and is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
+            Nachtbetrieb – morgen viel PV
+          {% elif is_state('binary_sensor.zendure_nacht', 'on')
+                and is_state('sensor.pv_erwartung_heute_gering', 'True') %}
+            Nachtbetrieb – Batterieschonung
+          {% elif is_state('binary_sensor.zendure_nacht', 'on') %}
+            Nachtbetrieb – normal
+          {% elif states('sensor.nettoleistung_netz_mittelwert') | float(0) < -120 %}
             Laden wegen Netzbezug
-          {% elif is_state('sensor.pv_erwartung_heute_gering', 'True') %}
-            Batterieschutz – wenig PV heute
-          {% elif is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
-            Entladen priorisiert – morgen viel PV
           {% elif states('sensor.nettoleistung_netz_mittelwert') | float(0) > 80 %}
             Entladen wegen Einspeisung
           {% else %}
             Neutralbereich
-          {% endif %}
+          {% endif %
+
+
+  - binary_sensor:
+      # Nachtsensor
+      - name: "Zendure Nacht"
+        state: >
+          {{ now().hour >= 22 or now().hour < 6 }}
+
 
 ############################################
 # STATISTICS SENSOR (MITTELWERT)
