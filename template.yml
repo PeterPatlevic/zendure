@@ -1,0 +1,84 @@
+############################################
+# TEMPLATE-SENSOREN
+############################################
+template:
+  - sensor:
+      # Nettoleistung am Netz (positiv = Einspeisung, negativ = Bezug)
+      - name: "Nettoleistung Netz"
+        unit_of_measurement: "W"
+        state: >
+          {{ states('sensor.sn_3007669104_metering_power_supplied') | float(0)
+             - states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}
+
+      # Sommer / Winter Profil
+      - name: "PV Profil"
+        state: >
+          {% set m = now().month %}
+          {{ 'Sommer' if 3 <= m <= 10 else 'Winter' }}
+
+      # PV-Erwartung nächste 1–2 Stunden
+      - name: "PV Erwartung Kurzfrist"
+        unit_of_measurement: "kWh"
+        state: >
+          {{ states('sensor.energy_current_hour') | float(0)
+             + states('sensor.energy_next_hour') | float(0) }}
+
+      # Heute Rest-PV gering?
+      - name: "PV Erwartung Heute Gering"
+        state: >
+          {{ states('sensor.energy_production_today_remaining') | float(0) < 3 }}
+
+      # Morgen viel PV?
+      - name: "PV Erwartung Morgen Hoch"
+        state: >
+          {{ states('sensor.energy_production_tomorow') | float(0) > 15 }}
+
+      # Maximale Entladeleistung (SoC + Prognose)
+      - name: "Zendure Max Entladeleistung"
+        unit_of_measurement: "W"
+        state: >
+          {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+          {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(0) %}
+          {% set pv_heute_gering = is_state('sensor.pv_erwartung_heute_gering', 'True') %}
+          {% set pv_morgen_hoch = is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
+          {% if soc <= soc_min %}
+            0
+          {% elif pv_heute_gering and soc < 60 %}
+            200
+          {% elif pv_morgen_hoch %}
+            800
+          {% elif soc < 40 %}
+            200
+          {% elif soc < 60 %}
+            400
+          {% elif soc < 80 %}
+            600
+          {% else %}
+            800
+          {% endif %}
+
+      # Debug: Warum lädt / entlädt?
+      - name: "Zendure Regelstatus"
+        state: >
+          {% if states('sensor.nettoleistung_netz_mittelwert') | float(0) < -120 %}
+            Laden wegen Netzbezug
+          {% elif is_state('sensor.pv_erwartung_heute_gering', 'True') %}
+            Batterieschutz – wenig PV heute
+          {% elif is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
+            Entladen priorisiert – morgen viel PV
+          {% elif states('sensor.nettoleistung_netz_mittelwert') | float(0) > 80 %}
+            Entladen wegen Einspeisung
+          {% else %}
+            Neutralbereich
+          {% endif %}
+
+############################################
+# STATISTICS SENSOR (MITTELWERT)
+############################################
+sensor:
+  - platform: statistics
+    name: "Nettoleistung Netz Mittelwert"
+    entity_id: sensor.nettoleistung_netz
+    sampling_size: 20
+    max_age:
+      seconds: 120
