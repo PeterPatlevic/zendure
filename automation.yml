@@ -11,7 +11,6 @@ trigger:
 
 variables:
   netz: "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
-  netz_abs: "{{ abs(netz) }}"
   soc: "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
   soc_min: "{{ states('sensor.zendure_effektives_mindest-soc') | float(0) }}"
   soc_max: "{{ states('number.solarflow_2400_ac_soc_set') | float(0) }}"
