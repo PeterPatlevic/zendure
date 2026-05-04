@@ -38,7 +38,7 @@ template:
         unit_of_measurement: "W"
         state: >
           {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
-          {% set soc_max = states('sensor.solarflow_2400_ac_soc_set') | float(0) %}
+          {% set soc_max = states('number.solarflow_2400_ac_soc_set') | float(0) %}
           {% set pv_heute_hoch = is_state('sensor.pv_erwartung_heute_gering', 'False') %}
           {% set pv_morgen_gering = is_state('sensor.pv_erwartung_morgen_hoch', 'False') %}
           {% if soc >= soc_max %}
@@ -103,37 +103,28 @@ template:
           {% set out = states('number.solarflow_2400_ac_output_limit') | int(0) %}
           {% set inp = states('number.solarflow_2400_ac_input_limit') | int(0) %}
 
-          {% if is_state('binary_sensor.zendure_nacht', 'on')
-                and out > 0
-                and is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
+          {% if is_state('binary_sensor.zendure_nacht', 'on') and out > 0
+            and is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
             Nachtentladung (Platz für PV, {{ out }} W)
-
-          {% elif is_state('binary_sensor.zendure_nacht', 'on')
-                and out > 0 %}
+          {% elif is_state('binary_sensor.zendure_nacht', 'on') and out > 0 %}
             Nachtentladung ({{ out }} W)
-
           {% elif is_state('binary_sensor.zendure_nacht', 'on') %}
             Nachtbetrieb – Batterie geschützt
-
           {% elif soc <= soc_eff %}
             Winter‑Safe‑Reserve aktiv
-
           {% elif inp > 0 %}
             Laden ({{ inp }} W)
-
           {% elif out > 0 %}
             Entladen ({{ out }} W)
-
           {% elif -80 < netz < 80 %}
             Neutralbereich (Netz ≈ 0)
-
           {% else %}
             Bereitschaft
           {% endif %}
 
           
       # Winterseserve
-      - name: "Zendure Effektives Mindest-SoC"
+      - name: "Zendure Effektives Mindest SoC"
         unit_of_measurement: "%"
         state: >
           {% set soc_min = states('number.solarflow_2400_ac_min_soc') | float(0) %}
