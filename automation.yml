@@ -85,33 +85,35 @@ action:
                               value: 100
 
               # ⚖️ Normalfall
-              - default:
-                  - choose:
-                      - conditions: "{{ netz < 300 or soc <= (soc_min + 10) }}"
-                        sequence:
-                          - service: number.set_value
-                            target:
-                              entity_id: number.solarflow_2400_ac_input_limit
-                            data:
-                              value: 0
-                          - service: number.set_value
-                            target:
-                              entity_id: number.solarflow_2400_ac_output_limit
-                            data:
-                              value: 0
 
-                      - conditions: "{{ netz >= 300 }}"
-                        sequence:
-                          - service: select.select_option
-                            target:
-                              entity_id: select.solarflow_2400_ac_ac_mode
-                            data:
-                              option: "AC Output mode"
-                          - service: number.set_value
-                            target:
-                              entity_id: number.solarflow_2400_ac_output_limit
-                            data:
-                              value: 200
+          default:
+            - choose:
+                - conditions: "{{ netz < 300 or soc <= soc_eff_min }}"
+                  sequence:
+                    - service: number.set_value
+                      target:
+                        entity_id: number.solarflow_2400_ac_input_limit
+                      data:
+                        value: 0
+                    - service: number.set_value
+                      target:
+                        entity_id: number.solarflow_2400_ac_output_limit
+                      data:
+                        value: 0
+
+                - conditions: "{{ netz >= 300 }}"
+                  sequence:
+                    - service: select.select_option
+                      target:
+                        entity_id: select.solarflow_2400_ac_ac_mode
+                      data:
+                        option: "AC Output mode"
+                    - service: number.set_value
+                      target:
+                        entity_id: number.solarflow_2400_ac_output_limit
+                      data:
+                        value: 200
+
 
       # 🔴 Laden (Netzbezug oder schlechte Prognose)
       - conditions: >
