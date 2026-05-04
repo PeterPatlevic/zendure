@@ -31,7 +31,8 @@ action:
             target:
               entity_id: number.solarflow_2400_ac_input_limit
             data:
-              value: 400
+              value: >
+                {{ 400 if profil == 'Sommer' else 300 }}
 
       # ⚪ Totband
       - conditions: "{{ -120 <= netz <= -80 }}"
