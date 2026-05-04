@@ -59,28 +59,44 @@ template:
 
       # Debug: Warum lädt / entlädt?
       - name: "Zendure Regelstatus"
-        state: >          
-          {% set soc = states('sensor.soc_zielwert') | float(0) %}
-          {% set soc_eff_min = states('sensor.zendure_effektives_mindest-soc') | float(0) %}
+        icon: >
+          {% if is_state('binary_sensor.zendure_nacht', 'on') %}
+            mdi:weather-night
+          {% elif states('sensor.solarflow_2400_ac_electric_level') | float(0)
+                <= states('sensor.zendure_effektives_mindest_soc') | float(0) %}
+            mdi:battery-alert
+          {% elif states('sensor.nettoleistung_netz_mittelwert') | float(0) < -120 %}
+            mdi:battery-charging
+          {% elif states('sensor.nettoleistung_netz_mittelwert') | float(0) > 80 %}
+            mdi:battery-arrow-up
+          {% else %}
+            mdi:swap-horizontal
+          {% endif %}
+        state: >
+          {% set netz = states('sensor.nettoleistung_netz_mittelwert') | float(0) %}
+          {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+          {% set soc_eff = states('sensor.zendure_effektives_mindest_soc') | float(0) %}
 
-          
-          {% if soc <= soc_eff_min %}
-            Winter-Safe-Reserve aktiv
-          {% elif is_state('binary_sensor.zendure_nacht', 'on')
+          {% if is_state('binary_sensor.zendure_nacht', 'on')
                 and is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
-            Nachtbetrieb – morgen viel PV
+            Nachtmodus – morgen viel PV (Platz schaffen)
           {% elif is_state('binary_sensor.zendure_nacht', 'on')
                 and is_state('sensor.pv_erwartung_heute_gering', 'True') %}
-            Nachtbetrieb – Batterieschonung
+            Nachtmodus – Batterieschonung
           {% elif is_state('binary_sensor.zendure_nacht', 'on') %}
-            Nachtbetrieb – normal
-          {% elif states('sensor.nettoleistung_netz_mittelwert') | float(0) < -120 %}
-            Laden wegen Netzbezug
-          {% elif states('sensor.nettoleistung_netz_mittelwert') | float(0) > 80 %}
-            Entladen wegen Einspeisung
+            Nachtmodus – normal
+          {% elif soc <= soc_eff %}
+            Winter‑Safe‑Reserve aktiv
+          {% elif netz < -120 %}
+            Laden (Netzbezug / schlechte Prognose)
+          {% elif -80 < netz < 80 %}
+            Feinkorrektur nahe Null
+          {% elif netz >= 80 %}
+            Entladen (Eigenverbrauch)
           {% else %}
-            Neutralbereich
+            Ruhebereich
           {% endif %}
+
           
       # Winterseserve
       - name: "Zendure Effektives Mindest-SoC"

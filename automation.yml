@@ -86,8 +86,8 @@ action:
 
               # ⚖️ Normalfall
 
-          default:
-            - choose:
+            default:
+              - choose:
                 - conditions: "{{ netz < 300 or soc <= soc_eff_min }}"
                   sequence:
                     - service: number.set_value
