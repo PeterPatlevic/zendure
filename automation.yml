@@ -3,11 +3,12 @@ mode: single
 
 trigger:
   - platform: time_pattern
-    seconds: "/0"
+    minutes: "/1"
+    seconds: "0"
 
 variables:
   netz: "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
-  netz-abs: "{{ abs(netz) }}"
+  netz_abs: "{{ abs(netz) }}"
   soc: "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
   soc_min: "{{ states('sensor.zendure_effektives_mindest-soc') | float(0) }}"
   soc_max: "{{ states('number.solarflow_2400_ac_soc_set') | float(0) }}"
@@ -84,34 +85,34 @@ action:
                             data:
                               value: 100
 
-            # ⚖️ Normalfall
-            default:
-              - choose:
-                - conditions: "{{ netz < 300 or soc <= soc_min }}"
-                  sequence:
-                    - service: number.set_value
-                      target:
-                        entity_id: number.solarflow_2400_ac_input_limit
-                      data:
-                        value: 0
-                    - service: number.set_value
-                      target:
-                        entity_id: number.solarflow_2400_ac_output_limit
-                      data:
-                        value: 0
+          # ⚖️ Normalfall
+          default:
+            - choose:
+              - conditions: "{{ netz < 300 or soc <= soc_min }}"
+                sequence:
+                  - service: number.set_value
+                    target:
+                      entity_id: number.solarflow_2400_ac_input_limit
+                    data:
+                      value: 0
+                  - service: number.set_value
+                    target:
+                      entity_id: number.solarflow_2400_ac_output_limit
+                    data:
+                      value: 0
 
-                - conditions: "{{ netz >= 300 }}"
-                  sequence:
-                    - service: select.select_option
-                      target:
-                        entity_id: select.solarflow_2400_ac_ac_mode
-                      data:
-                        option: "AC Output mode"
-                    - service: number.set_value
-                      target:
-                        entity_id: number.solarflow_2400_ac_output_limit
-                      data:
-                        value: 200
+              - conditions: "{{ netz >= 300 }}"
+                sequence:
+                  - service: select.select_option
+                    target:
+                      entity_id: select.solarflow_2400_ac_ac_mode
+                    data:
+                      option: "AC Output mode"
+                  - service: number.set_value
+                    target:
+                      entity_id: number.solarflow_2400_ac_output_limit
+                    data:
+                      value: 200
 
 
       # 🔴 Laden (Netzbezug oder schlechte Prognose)
