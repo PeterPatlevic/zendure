@@ -4,10 +4,7 @@ mode: single
 trigger:
   - platform: time_pattern
     minutes: "/1"
-    seconds: "0"  
-  - platform: event
-    event_type: test_zendure_trigger
-
+    seconds: "0"
 
 variables:
   netz: "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
@@ -87,8 +84,8 @@ action:
                             data:
                               value: 100
 
-          # ⚖️ Normalfall
-          default:
+            # ⚖️ Normalfall
+            default:
                 - choose:
                   - conditions: "{{ netz < 300 or soc <= soc_min }}"
                     sequence:
