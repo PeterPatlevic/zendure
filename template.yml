@@ -11,7 +11,7 @@ template:
              - states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}
 
       # Sommer / Winter Profil
-      - name: "PV Profil"
+      - name: "PV Jahreszeitprofil"
         state: >
           {% set m = now().month %}
           {{ 'Sommer' if 3 <= m <= 10 else 'Winter' }}
@@ -79,6 +79,7 @@ sensor:
   - platform: statistics
     name: "Nettoleistung Netz Mittelwert"
     entity_id: sensor.nettoleistung_netz
+    state_characteristic: mean
     sampling_size: 20
     max_age:
       seconds: 120
