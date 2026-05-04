@@ -116,8 +116,8 @@ action:
 
       # 🔴 Laden (Netzbezug oder schlechte Prognose)
       - conditions: >
-          {{ (netz < -120
-              or (is_state('sensor.pv_erwartung_heute_gering', 'True') and soc < 70))
+          {{ (netz > 120
+              or (is_state('sensor.pv_erwartung_morgen_hoch', 'False') and soc < 70))
              and soc < soc_max }}
         sequence:
           - service: select.select_option
@@ -131,17 +131,8 @@ action:
             data:
               value: "{{ 400 if profil == 'Sommer' else 300 }}"
 
-      # ⚪ Totband
-      - conditions: "{{ -120 <= netz <= -80 }}"
-        sequence:
-          - service: number.set_value
-            target:
-              entity_id: number.solarflow_2400_ac_input_limit
-            data:
-              value: 0
-
       # 🟡 Feinregelung nahe Nulleinspeisung
-      - conditions: "{{ -80 < netz < 80 and soc > soc_min }}"
+      - conditions: "{{ -80 <= netz < 80 and soc > soc_min }}"
         sequence:
           - service: select.select_option
             target:
@@ -155,7 +146,7 @@ action:
               value: 100
 
       # 🟢 Entladen (SoC + Prognose-abhängig)
-      - conditions: "{{ netz >= 80 and soc > soc_min }}"
+      - conditions: "{{ netz < -80 and soc > soc_min }}"
         sequence:
           - service: select.select_option
             target:
@@ -167,9 +158,9 @@ action:
               entity_id: number.solarflow_2400_ac_output_limit
             data:
               value: >
-                {% if netz < 250 %}
+                {% if netz < -250 %}
                   {{ min(200, max_entlade) }}
-                {% elif netz < 450 %}
+                {% elif netz < -450 %}
                   {{ min(400, max_entlade) }}
                 {% else %}
                   {{ min(800, max_entlade) }}
