@@ -3,7 +3,7 @@ mode: single
 
 trigger:
   - platform: time_pattern
-    seconds: "/45"
+    seconds: "/0"
 
 variables:
   netz: "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
