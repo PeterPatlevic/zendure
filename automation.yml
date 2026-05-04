@@ -45,7 +45,7 @@ action:
                             target:
                               entity_id: select.solarflow_2400_ac_ac_mode
                             data:
-                              option: "AC Output mode"
+                              option: "output"
                           - service: number.set_value
                             target:
                               entity_id: number.solarflow_2400_ac_output_limit
@@ -77,7 +77,7 @@ action:
                             target:
                               entity_id: select.solarflow_2400_ac_ac_mode
                             data:
-                              option: "AC Output mode"
+                              option: "output"
                           - service: number.set_value
                             target:
                               entity_id: number.solarflow_2400_ac_output_limit
@@ -106,7 +106,7 @@ action:
                         target:
                           entity_id: select.solarflow_2400_ac_ac_mode
                         data:
-                          option: "AC Output mode"
+                          option: "output"
                       - service: number.set_value
                         target:
                           entity_id: number.solarflow_2400_ac_output_limit
@@ -124,7 +124,7 @@ action:
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
             data:
-              option: "AC input mode"
+              option: "input"
           - service: number.set_value
             target:
               entity_id: number.solarflow_2400_ac_input_limit
@@ -147,7 +147,7 @@ action:
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
             data:
-              option: "AC Output mode"
+              option: "output"
           - service: number.set_value
             target:
               entity_id: number.solarflow_2400_ac_output_limit
@@ -161,7 +161,7 @@ action:
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
             data:
-              option: "AC Output mode"
+              option: "output"
           - service: number.set_value
             target:
               entity_id: number.solarflow_2400_ac_output_limit
