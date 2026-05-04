@@ -1,0 +1,78 @@
+alias: Zendure SolarFlow AC – Automatik mit Prognose
+mode: single
+
+trigger:
+  - platform: time_pattern
+    seconds: "/45"
+
+variables:
+  netz: "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
+  soc: "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
+  soc_min: "{{ states('number.solarflow_2400_ac_min_soc') | float(0) }}"
+  soc_max: "{{ states('number.solarflow_2400_ac_soc_set') | float(0) }}"
+  profil: "{{ states('sensor.pv_jahreszeitprofil') }}"
+  max_entlade: "{{ states('sensor.zendure_max_entladeleistung') | int(0) }}"
+
+action:
+  - choose:
+
+      # 🔴 Laden (Netzbezug oder schlechte Prognose)
+      - conditions: >
+          {{ (netz < -120
+              or (is_state('sensor.pv_erwartung_heute_gering', 'True') and soc < 70))
+             and soc < soc_max }}
+        sequence:
+          - service: select.select_option
+            target:
+              entity_id: select.solarflow_2400_ac_ac_mode
+            data:
+              option: "AC input mode"
+          - service: number.set_value
+            target:
+              entity_id: number.solarflow_2400_ac_input_limit
+            data:
+              value: 400
+
+      # ⚪ Totband
+      - conditions: "{{ -120 <= netz <= -80 }}"
+        sequence:
+          - service: number.set_value
+            target:
+              entity_id: number.solarflow_2400_ac_input_limit
+            data:
+              value: 0
+
+      # 🟡 Feinregelung nahe Nulleinspeisung
+      - conditions: "{{ -80 < netz < 80 and soc > soc_min }}"
+        sequence:
+          - service: select.select_option
+            target:
+              entity_id: select.solarflow_2400_ac_ac_mode
+            data:
+              option: "AC Output mode"
+          - service: number.set_value
+            target:
+              entity_id: number.solarflow_2400_ac_output_limit
+            data:
+              value: 100
+
+      # 🟢 Entladen (SoC + Prognose-abhängig)
+      - conditions: "{{ netz >= 80 and soc > soc_min }}"
+        sequence:
+          - service: select.select_option
+            target:
+              entity_id: select.solarflow_2400_ac_ac_mode
+            data:
+              option: "AC Output mode"
+          - service: number.set_value
+            target:
+              entity_id: number.solarflow_2400_ac_output_limit
+            data:
+              value: >
+                {% if netz < 250 %}
+                  {{ min(200, max_entlade) }}
+                {% elif netz < 450 %}
+                  {{ min(400, max_entlade) }}
+                {% else %}
+                  {{ min(800, max_entlade) }}
+                {% endif %}
