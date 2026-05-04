@@ -59,8 +59,14 @@ template:
 
       # Debug: Warum lädt / entlädt?
       - name: "Zendure Regelstatus"
-        state: >
-          {% if is_state('binary_sensor.zendure_nacht', 'on')
+        state: >          
+          {% set soc = states('sensor.soc_zielwert') | float(0) %}
+          {% set soc_eff_min = states('sensor.zendure_effektives_mindest-soc') | float(0) %}
+
+          
+          {% if soc <= soc_eff_min %}
+            Winter-Safe-Reserve aktiv
+          {% elif is_state('binary_sensor.zendure_nacht', 'on')
                 and is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
             Nachtbetrieb – morgen viel PV
           {% elif is_state('binary_sensor.zendure_nacht', 'on')
@@ -74,8 +80,21 @@ template:
             Entladen wegen Einspeisung
           {% else %}
             Neutralbereich
-          {% endif %
+          {% endif %}
+          
+      # Winterseserve
+      - name: "Zendure Effektives Mindest-SoC"
+        unit_of_measurement: "%"
+        state: >
+          {% set soc_min = states('number.solarflow_2400_ac_min_soc') | float(0) %}
+          {% set reserve = states('input_number.zendure_winter_reserve') | float(0) %}
+          {% set profil = states('sensor.pv_jahreszeitprofil') %}
 
+          {% if profil == 'Winter' %}
+            {{ soc_min + reserve }}
+          {% else %}
+            {{ soc_min }}
+          {% endif %}
 
   - binary_sensor:
       # Nachtsensor
