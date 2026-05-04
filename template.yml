@@ -65,9 +65,9 @@ template:
           {% elif states('sensor.solarflow_2400_ac_electric_level') | float(0)
                 <= states('sensor.zendure_effektives_mindest_soc') | float(0) %}
             mdi:battery-alert
-          {% elif states('sensor.nettoleistung_netz_mittelwert') | float(0) < -120 %}
+          {% elif states('number.solarflow_2400_ac_input_limit') | int(0) > 0 %}
             mdi:battery-charging
-          {% elif states('sensor.nettoleistung_netz_mittelwert') | float(0) > 80 %}
+          {% elif states('number.solarflow_2400_ac_output_limit') | int(0) > 0 %}
             mdi:battery-arrow-up
           {% else %}
             mdi:swap-horizontal
@@ -76,25 +76,35 @@ template:
           {% set netz = states('sensor.nettoleistung_netz_mittelwert') | float(0) %}
           {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
           {% set soc_eff = states('sensor.zendure_effektives_mindest_soc') | float(0) %}
+          {% set out = states('number.solarflow_2400_ac_output_limit') | int(0) %}
+          {% set inp = states('number.solarflow_2400_ac_input_limit') | int(0) %}
 
           {% if is_state('binary_sensor.zendure_nacht', 'on')
+                and out > 0
                 and is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
-            Nachtmodus – morgen viel PV (Platz schaffen)
+            Nachtentladung (Platz für PV, {{ out }} W)
+
           {% elif is_state('binary_sensor.zendure_nacht', 'on')
-                and is_state('sensor.pv_erwartung_heute_gering', 'True') %}
-            Nachtmodus – Batterieschonung
+                and out > 0 %}
+            Nachtentladung ({{ out }} W)
+
           {% elif is_state('binary_sensor.zendure_nacht', 'on') %}
-            Nachtmodus – normal
+            Nachtbetrieb – Batterie geschützt
+
           {% elif soc <= soc_eff %}
             Winter‑Safe‑Reserve aktiv
-          {% elif netz < -120 %}
-            Laden (Netzbezug / schlechte Prognose)
+
+          {% elif inp > 0 %}
+            Laden ({{ inp }} W)
+
+          {% elif out > 0 %}
+            Entladen ({{ out }} W)
+
           {% elif -80 < netz < 80 %}
-            Feinkorrektur nahe Null
-          {% elif netz >= 80 %}
-            Entladen (Eigenverbrauch)
+            Neutralbereich (Netz ≈ 0)
+
           {% else %}
-            Ruhebereich
+            Bereitschaft
           {% endif %}
 
           
