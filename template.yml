@@ -38,7 +38,7 @@ template:
         unit_of_measurement: "W"
         state: >
           {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
-          {% set soc_min = states('sensor.solarflow_2400_ac_soc_set') | float(0) %}
+          {% set soc_max = states('sensor.solarflow_2400_ac_soc_set') | float(0) %}
           {% set pv_heute_hoch = is_state('sensor.pv_erwartung_heute_gering', 'False') %}
           {% set pv_morgen_gering = is_state('sensor.pv_erwartung_morgen_hoch', 'False') %}
           {% if soc >= soc_max %}
