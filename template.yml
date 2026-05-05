@@ -10,75 +10,73 @@ template:
           {{ states('sensor.sn_3007669104_metering_power_supplied') | float(0)
              - states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}
 
-      # Sommer / Winter Profil
-      - name: "PV Jahreszeitprofil"
+      # Prognose Heute hoch, wenn Prognose > Peak
+      - name: "PV Prognose Heute hoch"
+        icon: mdi:solar-power
         state: >
-          {% set m = now().month %}
-          {{ 'Sommer' if 3 <= m <= 10 else 'Winter' }}
+          {% set prognose = states('sensor.energy_production_today_remaining') %}
+          {% set peak = states('input_number.pv_peak_leistung') %}
+          {% if prognose in ['unknown','unavailable'] or peak in ['unknown','unavailable'] %}
+            false
+          {% else %}
+            {{ (prognose | float) >= ((peak | float) / 1000) }}
+          {% endif %}
 
-      # PV-Erwartung nächste 1–2 Stunden
-      - name: "PV Erwartung Kurzfrist"
-        unit_of_measurement: "kWh"
+      # Prognose Morgen hoch, wenn Prognose > 3 x Peak
+      - name: "PV Prognose Morgen hoch"
+        icon: mdi:solar-power
         state: >
-          {{ states('sensor.energy_current_hour') | float(0)
-             + states('sensor.energy_next_hour') | float(0) }}
+          {% set prognose = states('sensor.energy_production_tomorrow') %}
+          {% set peak = states('input_number.pv_peak_leistung') %}
+          {% if prognose in ['unknown','unavailable'] or peak in ['unknown','unavailable'] %}
+            false
+          {% else %}
+            {{ (prognose | float) >= ((peak | float) * 3 / 1000) }}
+          {% endif %}
 
-      # Heute Rest-PV gering?
-      - name: "PV Erwartung Heute Gering"
-        state: >
-          {{ states('sensor.energy_production_today_remaining') | float(0) < 3 }}
-
-      # Morgen viel PV?
-      - name: "PV Erwartung Morgen Hoch"
-        state: >
-          {{ states('sensor.energy_production_tomorow') | float(0) > 15 }}
-
-      # Maximale Ladeleistung (SoC + Prognose)
+      # Maximale Ladeleistung (SoC)
       - name: "Zendure Max Ladeleistung"
         unit_of_measurement: "W"
         state: >
+          {% set max = float(800) %}
           {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
           {% set soc_max = states('number.solarflow_2400_ac_soc_set') | float(0) %}
-          {% set pv_heute_hoch = is_state('sensor.pv_erwartung_heute_gering', 'False') %}
-          {% set pv_morgen_gering = is_state('sensor.pv_erwartung_morgen_hoch', 'False') %}
+          {% set pv_heute_hoch = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
+          
           {% if soc >= soc_max %}
             0
-          {% elif pv_heute_hoch and soc < 60 %}
-            200
-          {% elif pv_morgen_gering %}
-            800
-          {% elif soc < 40 %}
-            800
-          {% elif soc < 60 %}
-            600
-          {% elif soc < 80 %}
-            200
+          {% elif pv_heute_hoch and soc > 60 %}
+            {{ max / 2 }}
+          {% elif pv_heute_hoch %}
+            {{ max * 3 / 2 }}
           {% else %}
-            800
+            {{ max }}
           {% endif %}
           
       # Maximale Entladeleistung (SoC + Prognose)
       - name: "Zendure Max Entladeleistung"
         unit_of_measurement: "W"
         state: >
+          {% set max = float(800) %}
           {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
           {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(0) %}
-          {% set pv_heute_gering = is_state('sensor.pv_erwartung_heute_gering', 'True') %}
-          {% set pv_morgen_hoch = is_state('sensor.pv_erwartung_morgen_hoch', 'True') %}
+          {% set pv_heute_gering = is_state('sensor.pv_prognose_heute_hoch', 'False') %}
+          {% set pv_morgen_gering = is_state('sensor.pv_prognose_morgen_hoch', 'False') %}
+          
           {% if soc <= soc_min %}
             0
-          {% elif pv_heute_gering and soc < 60 %}
-            200
-          {% elif pv_morgen_hoch %}
-            800
-          {% elif soc < 40 %}
-            200
-          {% elif soc < 60 %}
-            400
-          {% elif soc < 80 %}
-            600
+          {% elif not pv_heute_gering and not pv_morgen_gering and soc > 40 %}
+            {{ max }}
+          {% elif not pv_heute_gering and not pv_morgen_gering %}
+            {{ max * 3 / 4 }}
+          {% elif not pv_heute_gering and soc > 50 %}
+            {{ max * 2 / 3 }}
+          {% elif pv_heute_gering and soc > 60 %}
+            {{ max / 2 }}
+          {% elif pv_heute_gering %}
+            {{ max / 3 }}
           {% else %}
-            800
+            {{ max / 4 }}
           {% endif %}
 
       # Debug: Warum lädt / entlädt?
@@ -122,27 +120,12 @@ template:
             Bereitschaft
           {% endif %}
 
-          
-      # Winterseserve
-      - name: "Zendure Effektives Mindest SoC"
-        unit_of_measurement: "%"
-        state: >
-          {% set soc_min = states('number.solarflow_2400_ac_min_soc') | float(0) %}
-          {% set reserve = states('input_number.zendure_winter_reserve') | float(0) %}
-          {% set profil = states('sensor.pv_jahreszeitprofil') %}
-
-          {% if profil == 'Winter' %}
-            {{ soc_min + reserve }}
-          {% else %}
-            {{ soc_min }}
-          {% endif %}
-
   - binary_sensor:
-      # Nachtsensor
-      - name: "Zendure Nacht"
+      # Nachtsensor - Sonnenaufgang plus 2std., Sonnenuntergang minus 3std.
+      - name: "Ist Nacht"
         state: >
-          {{ now().hour >= 22 or now().hour < 6 }}
-
+          {{ (states('sensor.sun_next_rising') | as_timestamp + 7200)
+            < states('sensor.sun_next_setting') | as_timestamp - 10800 }}
 
 ############################################
 # STATISTICS SENSOR (MITTELWERT)
