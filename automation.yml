@@ -166,10 +166,10 @@ action:
               entity_id: number.solarflow_2400_ac_output_limit
             data:
               value: >
-                {% if netz < -250 %}
-                  {{ min(200, max_entlade) }}
+                {% if netz < -900 %}
+                  {{ min(800, max_entlade) }}
                 {% elif netz < -450 %}
                   {{ min(400, max_entlade) }}
                 {% else %}
-                  {{ min(800, max_entlade) }}
+                  {{ min(200, max_entlade) }}
                 {% endif %}
