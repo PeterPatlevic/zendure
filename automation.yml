@@ -9,7 +9,7 @@ trigger:
 variables:
   netz: "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
   soc: "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
-  soc_min: "{{ states('sensor.zendure_effektives_mindest_soc') | float(10) }}"
+  soc_min: "{{ states('sensor.solarflow_2400_ac_min_soc') | float(10) }}"
   soc_max: "{{ states('number.solarflow_2400_ac_soc_set') | float(80) }}"
   max_lade: "{{ states('sensor.zendure_max_ladeleistung') | int(333) }}"
   max_entlade: "{{ states('sensor.zendure_max_entladeleistung') | int(222) }}"
@@ -17,7 +17,7 @@ variables:
 action:
   - choose:
       # 🌙 Prognoseabhängige Nachtlogik
-      - conditions: "{{ is_state('binary_sensor.ist_nacht', 'True') }}"
+      - conditions: "{{ is_state('binary_sensor.ist_nacht', 'on') }}"
         sequence:
           - choose:
               # 🌞 Morgen viel PV → bewusst Platz schaffen

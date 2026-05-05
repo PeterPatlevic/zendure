@@ -10,6 +10,18 @@ template:
           {{ states('sensor.sn_3007669104_metering_power_supplied') | float(0)
              - states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}
 
+      # Prognose Stunde hoch, wenn Prognose > 1/2 Peak
+      - name: "PV Prognose Stunde hoch"
+        icon: mdi:solar-power
+        state: >
+          {% set prognose = states('sensor.energy_next_hour') %}
+          {% set peak = states('input_number.pv_peak_leistung') %}
+          {% if prognose in ['unknown','unavailable'] or peak in ['unknown','unavailable'] %}
+            false
+          {% else %}
+            {{ (prognose | float) >= ((peak | float) / 2000) }}
+          {% endif %}
+
       # Prognose Heute hoch, wenn Prognose > Peak
       - name: "PV Prognose Heute hoch"
         icon: mdi:solar-power
