@@ -144,12 +144,15 @@ template:
           {% elif netz > deadband and soc < soc_max %}
             mdi:solar-power
           {% elif netz < -deadband and soc > soc_min %}
+            {% set nutze_verbrauch = is_state('input_boolean.zendure_verbrauchsprognose', 'on') %}
             {% if prog_heute or prog_morgen %}
               mdi:battery-minus
-            {% elif reserve_wh > naechste_bedarf_wh %}
+            {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
               mdi:battery-minus-outline
-            {% else %}
+            {% elif nutze_verbrauch %}
               mdi:battery-low
+            {% else %}
+              mdi:battery-minus-outline
             {% endif %}
           {% else %}
             mdi:pause-circle-outline
@@ -184,12 +187,15 @@ template:
           {% elif netz > deadband and soc < soc_max %}
             ☀️ Tag – Laden
           {% elif netz < -deadband and soc > soc_min %}
+            {% set nutze_verbrauch = is_state('input_boolean.zendure_verbrauchsprognose', 'on') %}
             {% if prog_heute or prog_morgen %}
               🟢 Tag – Voll entladen
-            {% elif reserve_wh > naechste_bedarf_wh %}
+            {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
               🟡 Tag – Moderat entladen (Reserve reicht)
-            {% else %}
+            {% elif nutze_verbrauch %}
               🔴 Tag – Gedrosselt (Reserve knapp)
+            {% else %}
+              🟡 Tag – Halbe Leistung (Prognose aus)
             {% endif %}
           {% else %}
             🟰 Passiv (Deadband)

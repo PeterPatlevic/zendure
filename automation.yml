@@ -140,6 +140,8 @@ action:
       - conditions: "{{ netz < -deadband and soc > soc_min }}"
         sequence:
           - variables:
+              # Schalter: Verbrauchsprognose nutzen? (input_boolean in HA anlegen)
+              nutze_verbrauch: "{{ is_state('input_boolean.zendure_verbrauchsprognose', 'on') }}"
               # Erwarteter Verbrauch der nächsten Tageszeit (7d-Schnitt in W)
               erwartet: "{{ states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) }}"
               # Verfügbare Energie im Speicher über soc_min
@@ -165,12 +167,15 @@ action:
                 {% if prog_heute_hoch or prog_morgen_hoch %}
                   {# Gute Prognose: voll entladen, wird wieder aufgefüllt #}
                   {{ min(abs(netz), max_entlade) | int }}
-                {% elif reserve_wh > naechste_bedarf_wh %}
-                  {# Genug Reserve für nächste Periode: moderat entladen #}
+                {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
+                  {# Verbrauchsprognose aktiv + genug Reserve: moderat #}
                   {{ min(abs(netz * 2 / 3), max_entlade) | int }}
-                {% else %}
-                  {# Reserve knapp für nächste Periode: stark drosseln #}
+                {% elif nutze_verbrauch %}
+                  {# Verbrauchsprognose aktiv + Reserve knapp: stark drosseln #}
                   {{ min(abs(netz / 3), max_entlade) | int }}
+                {% else %}
+                  {# Verbrauchsprognose deaktiviert: einfache 50%-Logik #}
+                  {{ min(abs(netz / 2), max_entlade) | int }}
                 {% endif %}
 
     # ===========================================================================
