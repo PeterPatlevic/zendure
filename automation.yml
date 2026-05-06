@@ -9,8 +9,11 @@
 #   - Schlechte Prognose -> Speicher schonen (Reserve halten)
 #   - Gute Prognose -> Speicher voll nutzen
 ###############################################################################
-alias: Zendure SolarFlow AC – Automatik mit Prognose
+alias: Zendure SolarFlow AC – Automatik mit Prognose 0.2.0
 mode: single
+
+trace:
+  stored_traces: 120
 
 trigger:
   - platform: time_pattern
@@ -21,6 +24,7 @@ variables:
   # Geglättete Netto-Netzleistung (bereits speicher bereinigt, s. template.yml)
   # + Einspeisung / - Bezug
   netz:        "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
+  netz_abs:    "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) | abs }}"
   soc:         "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
   soc_min:     "{{ states('sensor.solarflow_2400_ac_min_soc')       | float(10) }}"
   soc_max:     "{{ states('number.solarflow_2400_ac_soc_set')       | float(80) }}"
@@ -86,7 +90,7 @@ action:
                     target:
                       entity_id: number.solarflow_2400_ac_output_limit
                     data:
-                      value: "{{ min(abs(netz), max_entlade) | int }}"
+                      value: "{{ min(netz_abs, max_entlade) | int }}"
 
               # Morgen wenig PV -> Reserve über soc_min halten, halbe Leistung
               - conditions: >
@@ -103,7 +107,7 @@ action:
                     target:
                       entity_id: number.solarflow_2400_ac_output_limit
                     data:
-                      value: "{{ min(abs(netz / 2), max_entlade) | int }}"
+                      value: "{{ min((netz_abs / 2), max_entlade) | int }}"
 
             # Default in der Nacht: passiv (kein Laden aus Netz, kein Entladen)
             default:
@@ -132,7 +136,7 @@ action:
             target:
               entity_id: number.solarflow_2400_ac_input_limit
             data:
-              value: "{{ min(abs(netz * 3 / 4), max_lade) | int }}"
+              value: "{{ min((netz_abs * 3 / 4), max_lade) | int }}"
 
       # =========================================================================
       # 🟢 TAG – Netzbezug -> entladen, Aggressivität nach Prognose + Verbrauch
@@ -166,16 +170,16 @@ action:
               value: >
                 {% if prog_heute_hoch or prog_morgen_hoch %}
                   {# Gute Prognose: voll entladen, wird wieder aufgefüllt #}
-                  {{ min(abs(netz), max_entlade) | int }}
+                  {{ min(netz_abs, max_entlade) | int }}
                 {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
                   {# Verbrauchsprognose aktiv + genug Reserve: moderat #}
-                  {{ min(abs(netz * 2 / 3), max_entlade) | int }}
+                  {{ min((netz_abs * 2 / 3), max_entlade) | int }}
                 {% elif nutze_verbrauch %}
                   {# Verbrauchsprognose aktiv + Reserve knapp: stark drosseln #}
-                  {{ min(abs(netz / 3), max_entlade) | int }}
+                  {{ min((netz_abs / 3), max_entlade) | int }}
                 {% else %}
                   {# Verbrauchsprognose deaktiviert: einfache 50%-Logik #}
-                  {{ min(abs(netz / 2), max_entlade) | int }}
+                  {{ min((netz_abs / 2), max_entlade) | int }}
                 {% endif %}
 
     # ===========================================================================
