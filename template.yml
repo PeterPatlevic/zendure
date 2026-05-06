@@ -3,8 +3,8 @@
 ############################################
 template:
   - sensor:
-      # Nettoleistung am Netz (positiv = Einspeisung, negativ = Bezug)
-      # Bereinigt um Speichereinfluss: Entladung hat Bezug reduziert → addieren,
+      # Nettoleistung am Netz (positiv = Einspeisung, negativ = Bezug),
+      # bereinigt um Speichereinfluss: Entladung hat Bezug reduziert → addieren,
       # Ladung hat Bezug erhöht → abziehen. So sieht man den "wahren" Haushaltsbedarf.
       - name: "Nettoleistung Netz"
         unit_of_measurement: "W"
