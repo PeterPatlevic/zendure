@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="2ebbb099-df6f-4e03-8f6e-0c0556a362b1" name="Changes" comment="Max Lade-/Entladeleistung verbessert">
+    <list default="true" id="2ebbb099-df6f-4e03-8f6e-0c0556a362b1" name="Changes" comment="Entscheidung visualisiert">
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/automation.yml" beforeDir="false" afterPath="$PROJECT_DIR$/automation.yml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/template.yml" beforeDir="false" afterPath="$PROJECT_DIR$/template.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -64,7 +66,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1778048017567</updated>
-      <workItem from="1778048018755" duration="9375000" />
+      <workItem from="1778048018755" duration="11553000" />
     </task>
     <task id="LOCAL-00001" summary="Netz Differenz">
       <option name="closed" value="true" />
@@ -90,7 +92,23 @@
       <option name="project" value="LOCAL" />
       <updated>1778056279325</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="Max Lade-/Entladeleistung verbessert">
+      <option name="closed" value="true" />
+      <created>1778059846593</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1778059846593</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Entscheidung visualisiert">
+      <option name="closed" value="true" />
+      <created>1778060068961</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1778060068961</updated>
+    </task>
+    <option name="localTasksCounter" value="6" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -100,7 +118,8 @@
     <MESSAGE value="Netz Differenz" />
     <MESSAGE value="Tippfehler" />
     <MESSAGE value="Max Lade-/Entladeleistung verbessert" />
-    <option name="LAST_COMMIT_MESSAGE" value="Max Lade-/Entladeleistung verbessert" />
+    <MESSAGE value="Entscheidung visualisiert" />
+    <option name="LAST_COMMIT_MESSAGE" value="Entscheidung visualisiert" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

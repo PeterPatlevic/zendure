@@ -126,7 +126,8 @@ template:
           {% set reserve_offset = 15 %}
           {% set notlade_offset = 10 %}
           {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
-          {% set reserve_wh = ((soc - soc_min) * 24) | int %}
+          {% set kapazitaet_wh = states('sensor.solarflow_2400_ac_total_kwh') | float(2.4) * 1000 %}
+          {% set reserve_wh = ((soc - soc_min) / 100 * kapazitaet_wh) | int %}
           {% set n = states('sensor.naechste_tageszeit') %}
           {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8} %}
           {% set naechste_bedarf_wh = (erwartet * dauer.get(n, 4)) | int %}
@@ -165,7 +166,8 @@ template:
           {% set reserve_offset = 15 %}
           {% set notlade_offset = 10 %}
           {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
-          {% set reserve_wh = ((soc - soc_min) * 24) | int %}
+          {% set kapazitaet_wh = states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000 %}
+          {% set reserve_wh = ((soc - soc_min) / 100 * kapazitaet_wh) | int %}
           {% set n = states('sensor.naechste_tageszeit') %}
           {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8} %}
           {% set naechste_bedarf_wh = (erwartet * dauer.get(n, 4)) | int %}

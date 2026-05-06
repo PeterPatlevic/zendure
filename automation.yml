@@ -142,8 +142,10 @@ action:
           - variables:
               # Erwarteter Verbrauch der nächsten Tageszeit (7d-Schnitt in W)
               erwartet: "{{ states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) }}"
-              # Verfügbare Energie im Speicher über soc_min (grob: %Reserve * 24Wh/%)
-              reserve_wh: "{{ ((soc - soc_min) * 24) | int }}"
+              # Verfügbare Energie im Speicher über soc_min
+              # Gesamtkapazität aus sensor.solarflow_2400_ac_total_kwh (kWh → Wh)
+              kapazitaet_wh: "{{ states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000 }}"
+              reserve_wh: "{{ ((soc - soc_min) / 100 * kapazitaet_wh) | int }}"
               # Dauer der nächsten Periode in Stunden (Durchschnitt ~4h)
               naechste_dauer: >
                 {% set n = states('sensor.naechste_tageszeit') %}
