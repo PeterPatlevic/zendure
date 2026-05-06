@@ -112,6 +112,69 @@ template:
             {{ (base / 6) | int }}
           {% endif %}
 
+      # Aktueller Steuer-Zustand (spiegelt die choose-Logik aus automation.yml)
+      - name: "Zendure Steuerung Status"
+        icon: >
+          {% set netz = states('sensor.nettoleistung_netz_mittelwert') | float(0) %}
+          {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+          {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(10) %}
+          {% set soc_max = states('number.solarflow_2400_ac_soc_set') | float(80) %}
+          {% set ist_nacht = is_state('binary_sensor.ist_nacht', 'on') %}
+          {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
+          {% set prog_morgen = is_state('sensor.pv_prognose_morgen_hoch', 'True') %}
+          {% set deadband = 50 %}
+          {% set reserve_offset = 15 %}
+          {% set notlade_offset = 10 %}
+          {% if ist_nacht %}
+            {% if not prog_heute and not prog_morgen and soc < (soc_min + notlade_offset) %}
+              mdi:battery-charging-wireless-alert
+            {% elif prog_morgen and soc > soc_min and netz < -deadband %}
+              mdi:battery-arrow-down
+            {% elif not prog_morgen and soc > (soc_min + reserve_offset) and netz < -deadband %}
+              mdi:battery-arrow-down-outline
+            {% else %}
+              mdi:sleep
+            {% endif %}
+          {% elif netz > deadband and soc < soc_max %}
+            mdi:solar-power
+          {% elif netz < -deadband and soc > soc_min %}
+            mdi:battery-minus
+          {% else %}
+            mdi:pause-circle-outline
+          {% endif %}
+        state: >
+          {% set netz = states('sensor.nettoleistung_netz_mittelwert') | float(0) %}
+          {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+          {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(10) %}
+          {% set soc_max = states('number.solarflow_2400_ac_soc_set') | float(80) %}
+          {% set ist_nacht = is_state('binary_sensor.ist_nacht', 'on') %}
+          {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
+          {% set prog_morgen = is_state('sensor.pv_prognose_morgen_hoch', 'True') %}
+          {% set deadband = 50 %}
+          {% set reserve_offset = 15 %}
+          {% set notlade_offset = 10 %}
+          {% if ist_nacht %}
+            {% if not prog_heute and not prog_morgen and soc < (soc_min + notlade_offset) %}
+              🆘 Nacht – Notladen
+            {% elif prog_morgen and soc > soc_min and netz < -deadband %}
+              🌙 Nacht – Platz schaffen
+            {% elif not prog_morgen and soc > (soc_min + reserve_offset) and netz < -deadband %}
+              🌙 Nacht – Schonend entladen
+            {% else %}
+              🌙 Nacht – Passiv
+            {% endif %}
+          {% elif netz > deadband and soc < soc_max %}
+            ☀️ Tag – Laden
+          {% elif netz < -deadband and soc > soc_min %}
+            {% if prog_heute or prog_morgen %}
+              🟢 Tag – Voll entladen
+            {% else %}
+              🟡 Tag – Schonend entladen
+            {% endif %}
+          {% else %}
+            🟰 Passiv (Deadband)
+          {% endif %}
+
   - binary_sensor:
       # Nachtsensor - Sonnenaufgang plus 2std., Sonnenuntergang minus 3std.
       - name: "Ist Nacht"
