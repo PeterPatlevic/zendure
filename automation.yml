@@ -1,4 +1,15 @@
-alias: Zendure SolarFlow AC – Automatik mit Prognose DEV
+###############################################################################
+# Zendure SolarFlow 2400 AC – Automatik mit PV-Prognose
+#
+# Ziele (siehe AGENTS.md):
+#   - Möglichst wenig Netzbezug
+#   - Tag mit PV-Überschuss   -> Speicher füllen
+#   - Tag mit Netzbezug       -> Speicher entladen, Aggressivität je Prognose
+#   - Nacht                   -> Speicher entleeren, NIE aus dem Netz laden
+#   - Schlechte Prognose      -> Speicher schonen (Reserve halten)
+#   - Gute Prognose           -> Speicher voll nutzen
+###############################################################################
+alias: Zendure SolarFlow AC – Automatik mit Prognose
 mode: single
 
 trigger:
@@ -7,133 +18,118 @@ trigger:
     seconds: "0"
 
 variables:
-  netz: "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
-  soc: "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
-  soc_min: "{{ states('sensor.solarflow_2400_ac_min_soc') | float(10) }}"
-  soc_max: "{{ states('number.solarflow_2400_ac_soc_set') | float(80) }}"
-  max_lade: "{{ states('sensor.zendure_max_ladeleistung') | int(333) }}"
-  max_entlade: "{{ states('sensor.zendure_max_entladeleistung') | int(222) }}"
+  # Geglättete Netto-Netzleistung: + Einspeisung / - Bezug (s. template.yml)
+  netz:        "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
+  soc:         "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
+  soc_min:     "{{ states('sensor.solarflow_2400_ac_min_soc')       | float(10) }}"
+  soc_max:     "{{ states('number.solarflow_2400_ac_soc_set')       | float(80) }}"
+  max_lade:    "{{ states('sensor.zendure_max_ladeleistung')        | int(800) }}"
+  max_entlade: "{{ states('sensor.zendure_max_entladeleistung')     | int(800) }}"
+
+  # Aktuelle Speicherleistung (Istwerte, nicht Limits!)
+  speicher_input:  "{{ states('sensor.solarflow_2400_ac_output_pack_power')  | float(0) }}"
+  speicher_output: "{{ states('sensor.solarflow_2400_ac_pack_input_power') | float(0) }}"
+
+  # Netz bereinigt um Speichereinfluss = "was wäre netz ohne Speicher?"
+  # Speicher-Output hat netz angehoben (weniger Bezug), Speicher-Input hat netz gesenkt (mehr Bezug)
+  # → herausrechnen: netz_bereinigt = netz - output + input
+  netz_bereinigt: "{{ netz - speicher_output + speicher_input }}"
+
+  # Prognose-Flags: states sind Strings 'True'/'False' (s. template.yml)
+  ist_nacht:        "{{ is_state('binary_sensor.ist_nacht', 'on') }}"
+  prog_stunde_hoch: "{{ is_state('sensor.pv_prognose_stunde_hoch', 'True') }}"
+  prog_heute_hoch:  "{{ is_state('sensor.pv_prognose_heute_hoch',  'True') }}"
+  prog_morgen_hoch: "{{ is_state('sensor.pv_prognose_morgen_hoch', 'True') }}"
+
+  # Hysterese um 0 W, verhindert Pendeln zwischen input/output
+  deadband: 50
+  # Mindestreserve über soc_min bei schlechter Morgen-Prognose
+  reserve_offset: 15
+  # Notlade-Schwelle (über soc_min) bei schlechter Heute+Morgen-Prognose
+  notlade_offset: 10
+  notlade_power: 200
 
 action:
   - choose:
-      # 🌙 Prognoseabhängige Nachtlogik
-      - conditions: "{{ is_state('binary_sensor.ist_nacht', 'on') }}"
+
+      # =========================================================================
+      # 🌙 NACHT
+      #   - Notladen   -> Heute & Morgen schlecht & SoC kritisch -> aus Netz laden
+      #   - Morgen hoch-> aggressiv bis soc_min leeren (Platz für PV)
+      #   - sonst      -> Reserve halten, schonend entladen
+      # =========================================================================
+      - conditions: "{{ ist_nacht }}"
         sequence:
           - choose:
-              # 🌞 Morgen viel PV → bewusst Platz schaffen
-              - conditions: >
-                  {{ is_state('sensor.pv_prognose_morgen_hoch', 'True')
-                     and soc > soc_min }}
-                sequence:
-                  - choose:
-                      - conditions: "{{ netz >= 0 or soc <= soc_min }}"
-                        sequence:
-                          - service: number.set_value
-                            target:
-                              entity_id: number.solarflow_2400_ac_input_limit
-                            data:
-                              value: 0
-                          - service: number.set_value
-                            target:
-                              entity_id: number.solarflow_2400_ac_output_limit
-                            data:
-                              value: 0
-                              
-                      - conditions: "{{ netz < 0 }}"
-                        sequence:
-                          - service: select.select_option
-                            target:
-                              entity_id: select.solarflow_2400_ac_ac_mode
-                            data:
-                              option: "output"
-                          - service: number.set_value
-                            target:
-                              entity_id: number.solarflow_2400_ac_output_limit
-                            data:
-                              value: >
-                                {{ min(abs(netz * 2 / 3), max_entlade) }}
-                              
-              # 🌥️ Heute wenig Rest + morgen wenig PV → schonen
-              - conditions: >
-                  {{ is_state('sensor.pv_prognose_heute_hoch', 'False')
-                     and is_state('sensor.pv_prognose_morgen_hoch', 'False') }}
-                sequence:
-                  - choose:
-                      - conditions: "{{ netz >= -50 or soc <= soc_min }}"
-                        sequence:
-                          - service: number.set_value
-                            target:
-                              entity_id: number.solarflow_2400_ac_input_limit
-                            data:
-                              value: 0
-                          - service: number.set_value
-                            target:
-                              entity_id: number.solarflow_2400_ac_output_limit
-                            data:
-                              value: 0
-                              
-                      - conditions: "{{ netz < -50 }}"
-                        sequence:
-                          - service: select.select_option
-                            target:
-                              entity_id: select.solarflow_2400_ac_ac_mode
-                            data:
-                              option: "output"
-                          - service: number.set_value
-                            target:
-                              entity_id: number.solarflow_2400_ac_output_limit
-                            data:
-                              value: >
-                                {{ min(abs(netz / 2), max_entlade)
 
-            # ⚖️ Normalfall in der Nacht
+              # 🆘 Notladen aus Netz: Heute & Morgen schlecht & SoC kritisch
+              - conditions: >
+                  {{ not prog_heute_hoch
+                     and not prog_morgen_hoch
+                     and soc < (soc_min + notlade_offset) }}
+                sequence:
+                  - service: select.select_option
+                    target:
+                      entity_id: select.solarflow_2400_ac_ac_mode
+                    data:
+                      option: "input"
+                  - service: number.set_value
+                    target:
+                      entity_id: number.solarflow_2400_ac_input_limit
+                    data:
+                      value: "{{ [notlade_power, max_lade] | min | int }}"
+
+              # Morgen viel PV erwartet -> Platz schaffen
+              - conditions: >
+                  {{ prog_morgen_hoch
+                     and soc > soc_min
+                     and netz < -deadband }}
+                sequence:
+                  - service: select.select_option
+                    target:
+                      entity_id: select.solarflow_2400_ac_ac_mode
+                    data:
+                      option: "output"
+                  - service: number.set_value
+                    target:
+                      entity_id: number.solarflow_2400_ac_output_limit
+                    data:
+                      value: "{{ min(abs(netz_bereinigt), max_entlade) | int }}"
+
+              # Morgen wenig PV -> Reserve über soc_min halten, halbe Leistung
+              - conditions: >
+                  {{ not prog_morgen_hoch
+                     and soc > (soc_min + reserve_offset)
+                     and netz < -deadband }}
+                sequence:
+                  - service: select.select_option
+                    target:
+                      entity_id: select.solarflow_2400_ac_ac_mode
+                    data:
+                      option: "output"
+                  - service: number.set_value
+                    target:
+                      entity_id: number.solarflow_2400_ac_output_limit
+                    data:
+                      value: "{{ min(abs(netz_bereinigt / 2), max_entlade) | int }}"
+
+            # Default in der Nacht: passiv (kein Laden aus Netz, kein Entladen)
             default:
-                - choose:
-                  - conditions: "{{ soc <= soc_min }}"
-                    sequence:
-                      - service: number.set_value
-                        target:
-                          entity_id: number.solarflow_2400_ac_input_limit
-                        data:
-                          value: 0
-                      - service: number.set_value
-                        target:
-                          entity_id: number.solarflow_2400_ac_output_limit
-                        data:
-                          value: 0
+              - service: number.set_value
+                target:
+                  entity_id: number.solarflow_2400_ac_input_limit
+                data:
+                  value: 0
+              - service: number.set_value
+                target:
+                  entity_id: number.solarflow_2400_ac_output_limit
+                data:
+                  value: 0
 
-                  - conditions: "{{ netz > 0 }}"
-                    sequence:
-                      - service: select.select_option
-                        target:
-                          entity_id: select.solarflow_2400_ac_ac_mode
-                        data:
-                          option: "input"
-                      - service: number.set_value
-                        target:
-                          entity_id: number.solarflow_2400_ac_intput_limit
-                        data:
-                          value: >
-                            {{ min(abs(netz * 3 / 4), max_lade)
-
-                  - conditions: "{{ netz < 0 }}"
-                    sequence:
-                      - service: select.select_option
-                        target:
-                          entity_id: select.solarflow_2400_ac_ac_mode
-                        data:
-                          option: "output"
-                      - service: number.set_value
-                        target:
-                          entity_id: number.solarflow_2400_ac_output_limit
-                        data:
-                          value: >
-                            {{ min(abs(netz * 3 / 4), max_entlade)
-
-      # 🔴 Laden (Netzbezug oder schlechte Prognose)
-      - conditions: >
-          {{ (netz > 100 and soc < soc_max
-            or (is_state('sensor.pv_prognose_morgen_hoch', 'False') and soc < 25)) }}
+      # =========================================================================
+      # ☀️ TAG – PV-Überschuss -> laden
+      # =========================================================================
+      - conditions: "{{ netz > deadband and soc < soc_max }}"
         sequence:
           - service: select.select_option
             target:
@@ -144,11 +140,13 @@ action:
             target:
               entity_id: number.solarflow_2400_ac_input_limit
             data:
-              value: >
-                {{ min(abs(netz * 3 / 4), max_lade) }}
+              value: "{{ min(abs(netz_bereinigt * 3 / 4), max_lade) | int }}"
 
-      # 🟢 Entladen (SoC + Prognose-abhängig)
-      - conditions: "{{ netz < 0 and soc > soc_min }}"
+
+      # =========================================================================
+      # 🟢 TAG – Netzbezug -> entladen, Aggressivität nach Prognose
+      # =========================================================================
+      - conditions: "{{ netz < -deadband and soc > soc_min }}"
         sequence:
           - service: select.select_option
             target:
@@ -160,4 +158,24 @@ action:
               entity_id: number.solarflow_2400_ac_output_limit
             data:
               value: >
-                {{ min(abs(netz), max_entlade) }}
+                {% if prog_heute_hoch or prog_morgen_hoch %}
+                  {{ min(abs(netz_bereinigt), max_entlade) | int }}
+                {% else %}
+                  {{ min(abs(netz_bereinigt / 2), max_entlade) | int }}
+                {% endif %}
+
+    # ===========================================================================
+    # 🟰 Default – Deadband oder SoC-Grenze: Speicher passiv
+    # ===========================================================================
+    default:
+      - service: number.set_value
+        target:
+          entity_id: number.solarflow_2400_ac_input_limit
+        data:
+          value: 0
+      - service: number.set_value
+        target:
+          entity_id: number.solarflow_2400_ac_output_limit
+        data:
+          value: 0
+
