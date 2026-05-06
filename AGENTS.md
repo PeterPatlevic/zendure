@@ -23,7 +23,7 @@
 - **Hysterese**: `deadband: 50` W gegen Pendeln; immer mit `<= -deadband` / `>= deadband` vergleichen.
 - **Leistungs-Capping**: durchgängig `min(abs(...), max_lade|max_entlade) | int`.
 - **Mode-first, Limit-second**: erst `select.solarflow_2400_ac_ac_mode` setzen, dann `number.*_limit`.
-- **Variablen als Single Source of Truth**: `soc`, `soc_min`, `soc_max`, `max_lade`, `max_entlade`, `speicher_input`, `speicher_output`, `netz_bereinigt`, `prog_*`, `ist_nacht`, `deadband`, `reserve_offset`, `notlade_offset`, `notlade_power`.
+- **Variablen als Single Source of Truth**: `soc`, `soc_min`, `soc_max`, `max_lade`, `max_entlade`, `netz_bereinigt`, `prog_*`, `ist_nacht`, `deadband`, `reserve_offset`, `notlade_offset`, `notlade_power`.
 
 ## Template-Sensoren (`template.yml`)
 - `Nettoleistung Netz` aus `sn_..._metering_power_supplied/absorbed`, geglättet via `statistics`-Sensor (mean, 20 samples / 120 s) → `sensor.nettoleistung_netz_mittelwert`.

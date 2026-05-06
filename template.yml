@@ -4,11 +4,16 @@
 template:
   - sensor:
       # Nettoleistung am Netz (positiv = Einspeisung, negativ = Bezug)
+      # Bereinigt um Speichereinfluss: Entladung hat Bezug reduziert → addieren,
+      # Ladung hat Bezug erhöht → abziehen. So sieht man den "wahren" Haushaltsbedarf.
       - name: "Nettoleistung Netz"
         unit_of_measurement: "W"
         state: >
-          {{ states('sensor.sn_3007669104_metering_power_supplied') | float(0)
-             - states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}
+          {% set netz = states('sensor.sn_3007669104_metering_power_supplied') | float(0)
+                      - states('sensor.sn_3007669104_metering_power_absorbed') | float(0) %}
+          {% set sp_in = states('sensor.solarflow_2400_ac_output_pack_power') | float(0) %}
+          {% set sp_out  = states('sensor.solarflow_2400_ac_pack_input_power') | float(0) %}
+          {{ netz - sp_out + sp_in }}
 
       # Prognose Stunde hoch, wenn Prognose > 1/2 Peak
       - name: "PV Prognose Stunde hoch"

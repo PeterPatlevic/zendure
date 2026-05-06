@@ -18,22 +18,14 @@ trigger:
     seconds: "0"
 
 variables:
-  # Geglättete Netto-Netzleistung: + Einspeisung / - Bezug (s. template.yml)
+  # Geglättete Netto-Netzleistung (bereits speicherbereinigt, s. template.yml)
+  # + Einspeisung / - Bezug
   netz:        "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
   soc:         "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
   soc_min:     "{{ states('sensor.solarflow_2400_ac_min_soc')       | float(10) }}"
   soc_max:     "{{ states('number.solarflow_2400_ac_soc_set')       | float(80) }}"
   max_lade:    "{{ states('sensor.zendure_max_ladeleistung')        | int(800) }}"
   max_entlade: "{{ states('sensor.zendure_max_entladeleistung')     | int(800) }}"
-
-  # Aktuelle Speicherleistung (Istwerte, nicht Limits!)
-  speicher_input:  "{{ states('sensor.solarflow_2400_ac_output_pack_power')  | float(0) }}"
-  speicher_output: "{{ states('sensor.solarflow_2400_ac_pack_input_power') | float(0) }}"
-
-  # Netz bereinigt um Speichereinfluss = "was wäre netz ohne Speicher?"
-  # Speicher-Output hat netz angehoben (weniger Bezug), Speicher-Input hat netz gesenkt (mehr Bezug)
-  # → herausrechnen: netz_bereinigt = netz - output + input
-  netz_bereinigt: "{{ netz - speicher_output + speicher_input }}"
 
   # Prognose-Flags: states sind Strings 'True'/'False' (s. template.yml)
   ist_nacht:        "{{ is_state('binary_sensor.ist_nacht', 'on') }}"
@@ -94,7 +86,7 @@ action:
                     target:
                       entity_id: number.solarflow_2400_ac_output_limit
                     data:
-                      value: "{{ min(abs(netz_bereinigt), max_entlade) | int }}"
+                      value: "{{ min(abs(netz), max_entlade) | int }}"
 
               # Morgen wenig PV -> Reserve über soc_min halten, halbe Leistung
               - conditions: >
@@ -111,7 +103,7 @@ action:
                     target:
                       entity_id: number.solarflow_2400_ac_output_limit
                     data:
-                      value: "{{ min(abs(netz_bereinigt / 2), max_entlade) | int }}"
+                      value: "{{ min(abs(netz / 2), max_entlade) | int }}"
 
             # Default in der Nacht: passiv (kein Laden aus Netz, kein Entladen)
             default:
@@ -140,8 +132,7 @@ action:
             target:
               entity_id: number.solarflow_2400_ac_input_limit
             data:
-              value: "{{ min(abs(netz_bereinigt * 3 / 4), max_lade) | int }}"
-
+              value: "{{ min(abs(netz * 3 / 4), max_lade) | int }}"
 
       # =========================================================================
       # 🟢 TAG – Netzbezug -> entladen, Aggressivität nach Prognose
@@ -159,9 +150,9 @@ action:
             data:
               value: >
                 {% if prog_heute_hoch or prog_morgen_hoch %}
-                  {{ min(abs(netz_bereinigt), max_entlade) | int }}
+                  {{ min(abs(netz), max_entlade) | int }}
                 {% else %}
-                  {{ min(abs(netz_bereinigt / 2), max_entlade) | int }}
+                  {{ min(abs(netz / 2), max_entlade) | int }}
                 {% endif %}
 
     # ===========================================================================
@@ -178,4 +169,3 @@ action:
           entity_id: number.solarflow_2400_ac_output_limit
         data:
           value: 0
-
