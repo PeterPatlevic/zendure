@@ -27,7 +27,7 @@ template:
             {{ (prognose | float) >= ((peak | float) / 2000) }}
           {% endif %}
 
-      # Prognose Heute hoch, wenn Prognose > Peak
+      # Prognose heute hoch, wenn Prognose > Peak
       - name: "PV Prognose Heute hoch"
         icon: mdi:solar-power
         state: >
@@ -196,7 +196,7 @@ template:
           {% endif %}
 
   - binary_sensor:
-      # Nachtsensor - Sonnenaufgang plus 2std., Sonnenuntergang minus 3std.
+      # Nachtsensor - Sonnenaufgang plus 2 Std., Sonnenuntergang minus 3 Std.
       - name: "Ist Nacht"
         state: >
           {{ (states('sensor.sun_next_rising') | as_timestamp + 7200)

@@ -3,11 +3,11 @@
 #
 # Ziele (siehe AGENTS.md):
 #   - Möglichst wenig Netzbezug
-#   - Tag mit PV-Überschuss   -> Speicher füllen
-#   - Tag mit Netzbezug       -> Speicher entladen, Aggressivität je Prognose
-#   - Nacht                   -> Speicher entleeren, NIE aus dem Netz laden
-#   - Schlechte Prognose      -> Speicher schonen (Reserve halten)
-#   - Gute Prognose           -> Speicher voll nutzen
+#   - Tag mit PV-Überschuss -> Speicher füllen
+#   - Tag mit Netzbezug -> Speicher entladen, Aggressivität je Prognose
+#   - Nacht -> Speicher entleeren, NIE aus dem Netz laden
+#   - Schlechte Prognose -> Speicher schonen (Reserve halten)
+#   - Gute Prognose -> Speicher voll nutzen
 ###############################################################################
 alias: Zendure SolarFlow AC – Automatik mit Prognose
 mode: single
@@ -18,7 +18,7 @@ trigger:
     seconds: "0"
 
 variables:
-  # Geglättete Netto-Netzleistung (bereits speicherbereinigt, s. template.yml)
+  # Geglättete Netto-Netzleistung (bereits speicher bereinigt, s. template.yml)
   # + Einspeisung / - Bezug
   netz:        "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
   soc:         "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
@@ -46,9 +46,9 @@ action:
 
       # =========================================================================
       # 🌙 NACHT
-      #   - Notladen   -> Heute & Morgen schlecht & SoC kritisch -> aus Netz laden
+      #   - Notladen -> Heute & Morgen schlecht & SoC kritisch -> aus Netz laden
       #   - Morgen hoch-> aggressiv bis soc_min leeren (Platz für PV)
-      #   - sonst      -> Reserve halten, schonend entladen
+      #   - sonst -> Reserve halten, schonend entladen
       # =========================================================================
       - conditions: "{{ ist_nacht }}"
         sequence:
