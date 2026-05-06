@@ -125,6 +125,11 @@ template:
           {% set deadband = 50 %}
           {% set reserve_offset = 15 %}
           {% set notlade_offset = 10 %}
+          {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
+          {% set reserve_wh = ((soc - soc_min) * 24) | int %}
+          {% set n = states('sensor.naechste_tageszeit') %}
+          {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8} %}
+          {% set naechste_bedarf_wh = (erwartet * dauer.get(n, 4)) | int %}
           {% if ist_nacht %}
             {% if not prog_heute and not prog_morgen and soc < (soc_min + notlade_offset) %}
               mdi:battery-charging-wireless-alert
@@ -138,7 +143,13 @@ template:
           {% elif netz > deadband and soc < soc_max %}
             mdi:solar-power
           {% elif netz < -deadband and soc > soc_min %}
-            mdi:battery-minus
+            {% if prog_heute or prog_morgen %}
+              mdi:battery-minus
+            {% elif reserve_wh > naechste_bedarf_wh %}
+              mdi:battery-minus-outline
+            {% else %}
+              mdi:battery-low
+            {% endif %}
           {% else %}
             mdi:pause-circle-outline
           {% endif %}
@@ -153,6 +164,11 @@ template:
           {% set deadband = 50 %}
           {% set reserve_offset = 15 %}
           {% set notlade_offset = 10 %}
+          {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
+          {% set reserve_wh = ((soc - soc_min) * 24) | int %}
+          {% set n = states('sensor.naechste_tageszeit') %}
+          {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8} %}
+          {% set naechste_bedarf_wh = (erwartet * dauer.get(n, 4)) | int %}
           {% if ist_nacht %}
             {% if not prog_heute and not prog_morgen and soc < (soc_min + notlade_offset) %}
               🆘 Nacht – Notladen
@@ -168,8 +184,10 @@ template:
           {% elif netz < -deadband and soc > soc_min %}
             {% if prog_heute or prog_morgen %}
               🟢 Tag – Voll entladen
+            {% elif reserve_wh > naechste_bedarf_wh %}
+              🟡 Tag – Moderat entladen (Reserve reicht)
             {% else %}
-              🟡 Tag – Schonend entladen
+              🔴 Tag – Gedrosselt (Reserve knapp)
             {% endif %}
           {% else %}
             🟰 Passiv (Deadband)
@@ -182,8 +200,97 @@ template:
           {{ (states('sensor.sun_next_rising') | as_timestamp + 7200)
             < states('sensor.sun_next_setting') | as_timestamp - 10800 }}
 
+  ############################################
+  # TAGESZEIT-BASIERTE VERBRAUCHSANALYSE
+  ############################################
+  # Zeitfenster:
+  #   Morgen:     06:00 – 09:59
+  #   Vormittag:  10:00 – 11:59
+  #   Nachmittag: 12:00 – 16:59
+  #   Abend:      17:00 – 21:59
+  #   Nacht:      22:00 – 05:59
+  - sensor:
+      # Aktuelle Tageszeit als Kategorie
+      - name: "Aktuelle Tageszeit"
+        icon: mdi:clock-outline
+        state: >
+          {% set h = now().hour %}
+          {% if 6 <= h < 10 %}
+            Morgen
+          {% elif 10 <= h < 12 %}
+            Vormittag
+          {% elif 12 <= h < 17 %}
+            Nachmittag
+          {% elif 17 <= h < 22 %}
+            Abend
+          {% else %}
+            Nacht
+          {% endif %}
+
+      # Nächste Tageszeit (für vorausschauende Planung)
+      - name: "Naechste Tageszeit"
+        icon: mdi:clock-fast
+        state: >
+          {% set h = now().hour %}
+          {% if 6 <= h < 10 %}
+            Vormittag
+          {% elif 10 <= h < 12 %}
+            Nachmittag
+          {% elif 12 <= h < 17 %}
+            Abend
+          {% elif 17 <= h < 22 %}
+            Nacht
+          {% else %}
+            Morgen
+          {% endif %}
+
+      # Gefilterte Verbrauchssensoren: nur aktiv in ihrem Zeitfenster.
+      # Außerhalb → unavailable, damit der Statistics-Sensor nur passende Werte mittelt.
+      - name: "Verbrauch Morgen"
+        unit_of_measurement: "W"
+        availability: "{{ 6 <= now().hour < 10 }}"
+        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+
+      - name: "Verbrauch Vormittag"
+        unit_of_measurement: "W"
+        availability: "{{ 10 <= now().hour < 12 }}"
+        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+
+      - name: "Verbrauch Nachmittag"
+        unit_of_measurement: "W"
+        availability: "{{ 12 <= now().hour < 17 }}"
+        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+
+      - name: "Verbrauch Abend"
+        unit_of_measurement: "W"
+        availability: "{{ 17 <= now().hour < 22 }}"
+        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+
+      - name: "Verbrauch Nacht"
+        unit_of_measurement: "W"
+        availability: "{{ now().hour >= 22 or now().hour < 6 }}"
+        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+
+      # Erwarteter Verbrauch der NÄCHSTEN Tageszeit (7-Tage-Durchschnitt)
+      - name: "Erwarteter Verbrauch naechste Periode"
+        unit_of_measurement: "W"
+        icon: mdi:chart-timeline-variant
+        state: >
+          {% set naechste = states('sensor.naechste_tageszeit') %}
+          {% if naechste == 'Morgen' %}
+            {{ states('sensor.durchschnitt_verbrauch_morgen_7d') | float(300) }}
+          {% elif naechste == 'Vormittag' %}
+            {{ states('sensor.durchschnitt_verbrauch_vormittag_7d') | float(400) }}
+          {% elif naechste == 'Nachmittag' %}
+            {{ states('sensor.durchschnitt_verbrauch_nachmittag_7d') | float(350) }}
+          {% elif naechste == 'Abend' %}
+            {{ states('sensor.durchschnitt_verbrauch_abend_7d') | float(500) }}
+          {% else %}
+            {{ states('sensor.durchschnitt_verbrauch_nacht_7d') | float(200) }}
+          {% endif %}
+
 ############################################
-# STATISTICS SENSOR (MITTELWERT)
+# STATISTICS SENSOREN
 ############################################
 sensor:
   - platform: statistics
@@ -193,3 +300,39 @@ sensor:
     sampling_size: 20
     max_age:
       seconds: 120
+
+  # 7-Tage Durchschnittsverbrauch pro Tageszeit
+  - platform: statistics
+    name: "Durchschnitt Verbrauch Morgen 7d"
+    entity_id: sensor.verbrauch_morgen
+    state_characteristic: mean
+    max_age:
+      days: 7
+
+  - platform: statistics
+    name: "Durchschnitt Verbrauch Vormittag 7d"
+    entity_id: sensor.verbrauch_vormittag
+    state_characteristic: mean
+    max_age:
+      days: 7
+
+  - platform: statistics
+    name: "Durchschnitt Verbrauch Nachmittag 7d"
+    entity_id: sensor.verbrauch_nachmittag
+    state_characteristic: mean
+    max_age:
+      days: 7
+
+  - platform: statistics
+    name: "Durchschnitt Verbrauch Abend 7d"
+    entity_id: sensor.verbrauch_abend
+    state_characteristic: mean
+    max_age:
+      days: 7
+
+  - platform: statistics
+    name: "Durchschnitt Verbrauch Nacht 7d"
+    entity_id: sensor.verbrauch_nacht
+    state_characteristic: mean
+    max_age:
+      days: 7

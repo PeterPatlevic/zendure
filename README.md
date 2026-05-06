@@ -156,3 +156,68 @@ States sind Strings `'True'` / `'False'` (Großschreibung!).
 - `input_number.pv_peak_leistung` (6800 für 6,8 kWp)
 - `sensor.sun_next_rising` / `sensor.sun_next_setting`
 
+---
+
+## Verbrauchsanalyse nach Tageszeit
+
+### Konzept
+
+Der historische Stromverbrauch wird in 5 Tageszeit-Perioden erfasst und über 7 Tage gemittelt.
+So kann die Automation vorausschauend entscheiden: „Reicht die Speicherreserve für die nächste Periode?"
+
+### Zeitfenster
+
+| Periode | Stunden | Typischer Verbrauch |
+|---|---|---|
+| Morgen | 06:00 – 09:59 | Frühstück, Warmwasser |
+| Vormittag | 10:00 – 11:59 | Haushalt, Büro |
+| Nachmittag | 12:00 – 16:59 | Kochen, Haushalt |
+| Abend | 17:00 – 21:59 | Kochen, Licht, Unterhaltung |
+| Nacht | 22:00 – 05:59 | Standby, Kühlschrank |
+
+### Sensor-Kette
+
+```
+sensor.sn_..._metering_power_absorbed  (Momentan-Bezug in W)
+  ↓  gefiltert nach Zeitfenster (availability-Template)
+sensor.verbrauch_morgen / …vormittag / …nachmittag / …abend / …nacht
+  ↓  statistics mean, max_age: 7 Tage
+sensor.durchschnitt_verbrauch_morgen_7d / …vormittag_7d / …nachmittag_7d / …abend_7d / …nacht_7d
+  ↓  Lookup nach nächster Tageszeit
+sensor.erwarteter_verbrauch_naechste_periode  (W)
+```
+
+### Hilfs-Sensoren
+
+| Sensor | Funktion |
+|---|---|
+| `sensor.aktuelle_tageszeit` | Aktuelle Periode (Morgen/Vormittag/…) |
+| `sensor.naechste_tageszeit` | Die darauffolgende Periode |
+| `sensor.erwarteter_verbrauch_naechste_periode` | 7d-Durchschnitt der nächsten Periode (W) |
+
+### Integration in die Entlade-Entscheidung
+
+Im Tag-Entlade-Branch (`🟢 TAG – Netzbezug`) werden zusätzliche Variablen berechnet:
+
+```yaml
+erwartet:           # Erwarteter Verbrauch nächste Periode (W, 7d-Mittel)
+reserve_wh:         # Verfügbare Energie über soc_min (ca. 24 Wh pro %-Punkt)
+naechste_dauer:     # Dauer der nächsten Periode in Stunden
+naechste_bedarf_wh: # erwartet × Dauer = geschätzter Gesamtbedarf (Wh)
+```
+
+**Entscheidungsmatrix:**
+
+| Bedingung | Entladeleistung | Begründung |
+|---|---|---|
+| Gute PV-Prognose (heute/morgen) | 100% von `|netz|` | Wird sicher wieder aufgefüllt |
+| Reserve > Bedarf nächste Periode | 67% von `|netz|` | Genug Puffer, moderat nutzen |
+| Reserve ≤ Bedarf nächste Periode | 33% von `|netz|` | Strecken für später |
+
+### Hinweise
+
+- Die Statistics-Sensoren brauchen **7 Tage Anlaufzeit** für aussagekräftige Daten.
+- Bis dahin gelten Default-Werte: Morgen 300W, Vormittag 400W, Nachmittag 350W, Abend 500W, Nacht 200W.
+- Die Reserve-Berechnung `(soc - soc_min) × 24 Wh` basiert auf ~2,4 kWh nutzbarer Kapazität des SolarFlow 2400 AC.
+- Die Perioden-Dauer ist fest hinterlegt: Morgen 4h, Vormittag 2h, Nachmittag 5h, Abend 5h, Nacht 8h.
+

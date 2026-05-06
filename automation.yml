@@ -135,10 +135,21 @@ action:
               value: "{{ min(abs(netz * 3 / 4), max_lade) | int }}"
 
       # =========================================================================
-      # 🟢 TAG – Netzbezug -> entladen, Aggressivität nach Prognose
+      # 🟢 TAG – Netzbezug -> entladen, Aggressivität nach Prognose + Verbrauch
       # =========================================================================
       - conditions: "{{ netz < -deadband and soc > soc_min }}"
         sequence:
+          - variables:
+              # Erwarteter Verbrauch der nächsten Tageszeit (7d-Schnitt in W)
+              erwartet: "{{ states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) }}"
+              # Verfügbare Energie im Speicher über soc_min (grob: %Reserve * 24Wh/%)
+              reserve_wh: "{{ ((soc - soc_min) * 24) | int }}"
+              # Dauer der nächsten Periode in Stunden (Durchschnitt ~4h)
+              naechste_dauer: >
+                {% set n = states('sensor.naechste_tageszeit') %}
+                {% if n == 'Morgen' %}4{% elif n == 'Vormittag' %}2{% elif n == 'Nachmittag' %}5{% elif n == 'Abend' %}5{% else %}8{% endif %}
+              # Geschätzter Bedarf der nächsten Periode (Wh)
+              naechste_bedarf_wh: "{{ (erwartet * naechste_dauer | float) | int }}"
           - service: select.select_option
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
@@ -150,9 +161,14 @@ action:
             data:
               value: >
                 {% if prog_heute_hoch or prog_morgen_hoch %}
+                  {# Gute Prognose: voll entladen, wird wieder aufgefüllt #}
                   {{ min(abs(netz), max_entlade) | int }}
+                {% elif reserve_wh > naechste_bedarf_wh %}
+                  {# Genug Reserve für nächste Periode: moderat entladen #}
+                  {{ min(abs(netz * 2 / 3), max_entlade) | int }}
                 {% else %}
-                  {{ min(abs(netz / 2), max_entlade) | int }}
+                  {# Reserve knapp für nächste Periode: stark drosseln #}
+                  {{ min(abs(netz / 3), max_entlade) | int }}
                 {% endif %}
 
     # ===========================================================================
