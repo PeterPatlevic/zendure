@@ -40,6 +40,49 @@ Die Speicherkompensation stellt sicher, dass `netz` den **wahren Haushaltsbedarf
 
 ---
 
+## Manuell anzulegende Helper
+
+Vor dem ersten Start müssen folgende Helper in Home Assistant angelegt werden  
+(**Einstellungen → Geräte & Dienste → Helfer → Helfer erstellen**):
+
+| Typ | Entity-ID | Name | Werte / Einstellung | Zweck |
+|---|---|---|---|---|
+| 🔢 Zahl | `input_number.pv_peak_leistung` | PV Peak Leistung | min 0, max 20000, Schritt 100, Einheit `W`, Default **6800** | Bezugsgröße für Prognose-Schwellen (PV-Anlagengröße in W) |
+| 🔘 Schalter | `input_boolean.zendure_verbrauchsprognose` | Zendure Verbrauchsprognose | Default an | Aktiviert die 3-stufige Entladelogik anhand 7-Tage-Verbrauch. Aus = einfacher 50%-Fallback |
+| 📝 Text | `input_text.zendure_status` | Zendure Status | min 0, max 60 | Wird von der Automation pro Branch gesetzt; `sensor.zendure_steuerung_status` liest hieraus |
+
+> **Wichtig**: Solange `input_text.zendure_status` nicht existiert, schlägt jeder `set_value`-Aufruf in der Automation fehl und der Branch bricht ab. Helper **zuerst** anlegen, dann YAML neu laden.
+
+### Schnellanlage via YAML (`configuration.yaml`)
+
+Alternativ direkt per YAML statt UI:
+
+```yaml
+input_number:
+  pv_peak_leistung:
+    name: PV Peak Leistung
+    min: 0
+    max: 20000
+    step: 100
+    unit_of_measurement: W
+    initial: 6800
+
+input_boolean:
+  zendure_verbrauchsprognose:
+    name: Zendure Verbrauchsprognose
+    icon: mdi:chart-timeline-variant
+    initial: true
+
+input_text:
+  zendure_status:
+    name: Zendure Status
+    min: 0
+    max: 60
+    initial: "🟰 Passiv (Deadband)"
+```
+
+---
+
 ## Steuerlogik (`automation.yml`)
 
 Trigger: jede Minute (`time_pattern /1`), `mode: single`.
@@ -79,11 +122,12 @@ Kernfrage: *"Wie schnell laden?"* – Bei schlechter Prognose aggressiv, bei gut
 
 | Bedingung | Leistung | Begründung |
 |---|---|---|
-| `soc >= soc_max` | 0 W | Voll, nicht überladen |
-| Tagesprognose schlecht | 800 W | Jede kWh mitnehmen die kommt |
-| Gute Prognose, fast voll (< 10% Platz) | 266 W | Sanft vollladen, PV kommt noch |
-| Gute Prognose + gerade viel PV | 533 W | Moderat, es kommt noch mehr |
-| Gute Prognose, noch Platz, gerade wenig PV | 800 W | Normal laden wenn's da ist |
+| Basiswert | 800 W | Maximal, wenn nichts dagegen spricht |
+| `soc >= soc_max` | 0 W      | Voll, nicht überladen |
+| Tagesprognose schlecht | 1/1      | Jede kWh mitnehmen die kommt |
+| Gute Prognose, fast voll (< 10% Platz) | 1/3      | Sanft vollladen, PV kommt noch |
+| Gute Prognose + gerade viel PV | 2/3      | Moderat, es kommt noch mehr |
+| Gute Prognose, noch Platz, gerade wenig PV | 1/1 | Normal laden wenn's da ist |
 
 ### Max Entladeleistung
 
@@ -91,12 +135,13 @@ Kernfrage: *"Wie viel können wir uns leisten?"* – Prognose bestimmt Aggressiv
 
 | Bedingung | Leistung | Begründung |
 |---|---|---|
+| Basiswert | 800 W | Maximal, wenn nichts dagegen spricht |
 | `soc <= soc_min` | 0 W | Leer, Schutz |
-| Morgen kommt PV & Reserve > 20% | 800 W | Wird morgen sicher aufgefüllt |
-| Heute kommt noch PV & Reserve > 15% | 600 W | Wird heute teilweise aufgefüllt |
-| Schlechte Prognose, Reserve > 30% | 400 W | Viel Puffer, maßvoll nutzen |
-| Schlechte Prognose, Reserve > 10% | 200 W | Wenig Puffer, sparsam |
-| Knapp über soc_min | 133 W | Notreserve dehnen |
+| Morgen kommt PV & Reserve > 20% | 1/1 | Wird morgen sicher aufgefüllt |
+| Heute kommt noch PV & Reserve > 15% | 3/4 | Wird heute teilweise aufgefüllt |
+| Schlechte Prognose, Reserve > 30% | 1/2 | Viel Puffer, maßvoll nutzen |
+| Schlechte Prognose, Reserve > 10% | 1/4 | Wenig Puffer, sparsam |
+| Knapp über soc_min | 1/5 | Notreserve dehnen |
 
 > `reserve` = `soc - soc_min` (nutzbarer Bereich über dem Minimum)
 
@@ -218,6 +263,6 @@ naechste_bedarf_wh: # erwartet × Dauer = geschätzter Gesamtbedarf (Wh)
 
 - Die Statistics-Sensoren brauchen **7 Tage Anlaufzeit** für aussagekräftige Daten.
 - Bis dahin gelten Default-Werte: Morgen 300W, Vormittag 400W, Nachmittag 350W, Abend 500W, Nacht 200W.
-- Die Reserve-Berechnung `(soc - soc_min) × 24 Wh` basiert auf ~2,4 kWh nutzbarer Kapazität des SolarFlow 2400 AC.
+- Die Reserve-Berechnung `(soc - soc_min) × ? Wh` basiert auf der nutzbaren Kapazität des SolarFlow 2400 AC.
 - Die Perioden-Dauer ist fest hinterlegt: Morgen 4h, Vormittag 2h, Nachmittag 5h, Abend 5h, Nacht 8h.
 
