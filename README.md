@@ -48,7 +48,7 @@ Vor dem ersten Start müssen folgende Helper in Home Assistant angelegt werden
 | Typ | Entity-ID | Name | Werte / Einstellung | Zweck |
 |---|---|---|---|---|
 | 🔢 Zahl | `input_number.pv_peak_leistung` | PV Peak Leistung | min 0, max 20000, Schritt 100, Einheit `W`, Default **6800** | Bezugsgröße für Prognose-Schwellen (PV-Anlagengröße in W) |
-| 🔘 Schalter | `input_boolean.zendure_verbrauchsprognose` | Zendure Verbrauchsprognose | Default an | Aktiviert die 3-stufige Entladelogik anhand 7-Tage-Verbrauch. Aus = einfacher 50%-Fallback |
+| 🔘 Schalter | `input_boolean.zendure_verbrauchsprognose` | Zendure Verbrauchsprognose | Default an | Aktiviert das zusätzliche Verbrauchs-Cap im Template-Sensor `Zendure Max Entladeleistung` (drosselt bei knapper Reserve auf 200 W). Aus = nur SoC + PV-Prognose |
 | 📝 Text | `input_text.zendure_status` | Zendure Status | min 0, max 60 | Wird von der Automation pro Branch gesetzt; `sensor.zendure_steuerung_status` liest hieraus |
 
 > **Wichtig**: Solange `input_text.zendure_status` nicht existiert, schlägt jeder `set_value`-Aufruf in der Automation fehl und der Branch bricht ab. Helper **zuerst** anlegen, dann YAML neu laden.
@@ -95,13 +95,12 @@ Trigger: jede Minute (`time_pattern /1`), `mode: single`.
 | 2 | 🌙 Nacht – Platz schaffen | `ist_nacht` + `prog_morgen_hoch` + `soc > soc_min` + `netz < -50` | Mode `output`, `min(\|120% netz\|, max_entlade)`  |
 | 3 | 🌙 Nacht – Schonen | `ist_nacht` + morgen schlecht + `soc > soc_min + 15` + `netz < -50` | Mode `output`, `min(\|80% netz\|, max_entlade)` |
 | 4 | 🌙 Nacht – Default | `ist_nacht` (kein Match oben) | Limits = 0 (passiv)                               |
-| 5 | ☀️ Tag – Überschuss | `netz > 50` + `soc < soc_max` | Mode `input`, `min(¾·netz, max_lade)`             |
-| 6 | 🟢 Tag – Bezug | `netz < -50` + `soc > soc_min` | Mode `output`, prognoseabhängig (s.u.)            |
+| 5 | ☀️ Tag – Überschuss | `netz > 50` + `soc < soc_max` | Mode `input`, `min(\|netz\|, max_lade)` |
+| 6 | 🟢 Tag – Bezug | `netz < -50` + `soc > soc_min` | Mode `output`, `min(\|netz\|, max_entlade)` |
 | 7 | 🟰 Default | Deadband oder SoC-Grenze | Limits = 0 (passiv)                               |
 
-**Tag-Entladung (Branch 6):**
-- Gute Prognose (heute ODER morgen): `min(|netz|, max_entlade)` – voll decken
-- Schlechte Prognose: `min(|netz/2|, max_entlade)` – nur halb decken
+**Tag-Entladung (Branch 6):**  
+Einheitliche Regel: `min(|netz|, max_entlade)`. Die gesamte Drosselung (SoC, Prognose, Reserve, optional Verbrauchsprognose) lebt im Template-Sensor `Zendure Max Entladeleistung` – siehe unten. Der Branch ist damit „dumm" und nur Ausführer.
 
 ### Tuning-Variablen
 
@@ -141,9 +140,18 @@ Kernfrage: *"Wie viel können wir uns leisten?"* – Prognose bestimmt Aggressiv
 | Heute kommt noch PV & Reserve > 15% | 3/4 | Wird heute teilweise aufgefüllt |
 | Schlechte Prognose, Reserve > 30% | 1/2 | Viel Puffer, maßvoll nutzen |
 | Schlechte Prognose, Reserve > 10% | 1/4 | Wenig Puffer, sparsam |
-| Knapp über soc_min | 1/5 | Notreserve dehnen |
+| Knapp über soc_min | 1/6 | Notreserve dehnen |
 
 > `reserve` = `soc - soc_min` (nutzbarer Bereich über dem Minimum)
+
+**Optionaler zusätzlicher Cap durch Verbrauchsprognose:**
+
+Wenn `input_boolean.zendure_verbrauchsprognose = on` UND keine PV-Prognose-Hilfe (heute & morgen schlecht) UND die Speicher-Reserve in Wh kleiner ist als der erwartete Bedarf der **nächsten** Tageszeit-Periode (7-Tage-Mittel × Periodendauer), wird zusätzlich auf maximal `base/4` (= 200 W) gedeckelt.
+
+| Toggle | Verhalten |
+|---|---|
+| **AN** (Default) | Volle Logik inkl. Verbrauchs-Vorausschau – schont den Speicher wenn Reserve knapp für den nächsten Block |
+| **AUS** | Nur SoC + PV-Prognose – einfacher, aggressiver |
 
 ---
 
@@ -242,27 +250,31 @@ sensor.erwarteter_verbrauch_naechste_periode  (W)
 
 ### Integration in die Entlade-Entscheidung
 
-Im Tag-Entlade-Branch (`🟢 TAG – Netzbezug`) werden zusätzliche Variablen berechnet:
+Die Verbrauchsprognose wirkt **ausschließlich als zusätzliches Cap** im Template-Sensor `Zendure Max Entladeleistung` – nicht in der Automation. Aktiviert wird sie über den Helper `input_boolean.zendure_verbrauchsprognose`.
+
+Berechnete Werte (in `template.yml`):
 
 ```yaml
-erwartet:           # Erwarteter Verbrauch nächste Periode (W, 7d-Mittel)
-reserve_wh:         # Verfügbare Energie über soc_min (ca. 24 Wh pro %-Punkt)
-naechste_dauer:     # Dauer der nächsten Periode in Stunden
-naechste_bedarf_wh: # erwartet × Dauer = geschätzter Gesamtbedarf (Wh)
+erwartet:        # Erwarteter Verbrauch nächste Periode (W, 7d-Mittel)
+reserve_wh:      # Verfügbare Energie über soc_min (kapazität × reserve%)
+naechste_dauer:  # Dauer der nächsten Periode (h)
+bedarf_wh:       # erwartet × Dauer = geschätzter Gesamtbedarf (Wh)
 ```
 
-**Entscheidungsmatrix:**
+**Cap-Logik:**
 
-| Bedingung | Entladeleistung | Begründung |
-|---|---|---|
-| Gute PV-Prognose (heute/morgen) | 100% von `|netz|` | Wird sicher wieder aufgefüllt |
-| Reserve > Bedarf nächste Periode | 67% von `|netz|` | Genug Puffer, moderat nutzen |
-| Reserve ≤ Bedarf nächste Periode | 33% von `|netz|` | Strecken für später |
+| Toggle | PV-Prognose | Reserve vs. Bedarf | Effekt |
+|---|---|---|---|
+| AN | gut (heute oder morgen) | – | kein Verbrauchs-Cap, normale Logik |
+| AN | schlecht | Reserve ≥ Bedarf | kein Verbrauchs-Cap, normale Logik |
+| AN | schlecht | Reserve < Bedarf | **zusätzliches Cap auf 200 W** |
+| AUS | – | – | nie ein Verbrauchs-Cap |
 
 ### Hinweise
 
 - Die Statistics-Sensoren brauchen **7 Tage Anlaufzeit** für aussagekräftige Daten.
 - Bis dahin gelten Default-Werte: Morgen 300W, Vormittag 400W, Nachmittag 350W, Abend 500W, Nacht 200W.
-- Die Reserve-Berechnung `(soc - soc_min) × ? Wh` basiert auf der nutzbaren Kapazität des SolarFlow 2400 AC.
+- Die Reserve-Berechnung nutzt `sensor.solarflow_2400_ac_total_kwh` (Gesamtkapazität in kWh) – passt sich automatisch an, wenn Module ergänzt werden.
 - Die Perioden-Dauer ist fest hinterlegt: Morgen 4h, Vormittag 2h, Nachmittag 5h, Abend 5h, Nacht 8h.
+- `sampling_size: 10000` bei den 7d-Statistics, sonst werden nur die letzten 20 Samples gemittelt.
 

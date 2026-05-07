@@ -83,6 +83,9 @@ template:
       # Strategie: Gute Prognose = großzügig entladen (wird wieder aufgefüllt),
       # schlechte Prognose = konservativ (muss lange reichen).
       # SoC-Nähe zu soc_min drosselt zusätzlich.
+      # Optional (Schalter input_boolean.zendure_verbrauchsprognose):
+      #   Wenn AN und Reserve im Speicher < geschätzter Bedarf nächste Periode
+      #   und keine PV-Prognose-Hilfe -> zusätzliches Cap auf base/4.
       - name: "Zendure Max Entladeleistung"
         unit_of_measurement: "W"
         state: >
@@ -92,24 +95,41 @@ template:
           {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
           {% set prog_morgen = is_state('sensor.pv_prognose_morgen_hoch', 'True') %}
           {% set reserve = soc - soc_min %}
-          
+          {% set use_verbrauch = is_state('input_boolean.zendure_verbrauchsprognose', 'on') %}
+          {% set kapazitaet_wh = states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000 %}
+          {% set reserve_wh = (reserve / 100 * kapazitaet_wh) | int %}
+          {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
+          {% set n = states('sensor.naechste_tageszeit') %}
+          {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8}.get(n, 4) %}
+          {% set bedarf_wh = (erwartet * dauer) | int %}
+
+          {# Basis-Cap nach SoC + PV-Prognose #}
+          {% set ns = namespace(cap=0) %}
           {% if soc <= soc_min %}
-            0
+            {% set ns.cap = 0 %}
           {% elif prog_morgen and reserve > 20 %}
             {# Morgen kommt PV, genug Reserve: volle Leistung #}
-            {{ base }}
+            {% set ns.cap = base %}
           {% elif prog_heute and reserve > 15 %}
             {# Heute kommt noch PV: moderate Entladung #}
-            {{ (base * 3 / 4) | int }}
+            {% set ns.cap = (base * 3 / 4) | int %}
           {% elif reserve > 30 %}
             {# Schlechte Prognose aber viel Reserve: halb #}
-            {{ (base / 2) | int }}
+            {% set ns.cap = (base / 2) | int %}
           {% elif reserve > 10 %}
             {# Wenig Reserve, schlechte Prognose: vorsichtig #}
-            {{ (base / 4) | int }}
+            {% set ns.cap = (base / 4) | int %}
           {% else %}
             {# Knapp über soc_min: minimal (Notreserve) #}
-            {{ (base / 6) | int }}
+            {% set ns.cap = (base / 6) | int %}
+          {% endif %}
+
+          {# Verbrauchsprognose-Schalter: zusätzlich drosseln wenn keine PV-Hilfe
+             und 7d-Bedarf der nächsten Periode > verfügbare Reserve #}
+          {% if use_verbrauch and not prog_heute and not prog_morgen and reserve_wh < bedarf_wh %}
+            {{ [ns.cap, (base / 4) | int] | min }}
+          {% else %}
+            {{ ns.cap }}
           {% endif %}
 
       # Aktueller Steuer-Zustand: spiegelt EXAKT den zuletzt ausgeführten
@@ -123,11 +143,9 @@ template:
           {% elif 'Platz schaffen' in s %}      mdi:battery-arrow-down
           {% elif 'Schonend' in s %}            mdi:battery-arrow-down-outline
           {% elif 'Nacht – Passiv' in s %}      mdi:sleep
-          {% elif 'Laden' in s %}               mdi:solar-power
-          {% elif 'Voll entladen' in s %}       mdi:battery-minus
-          {% elif 'Moderat' in s %}             mdi:battery-minus-outline
-          {% elif 'Gedrosselt' in s %}          mdi:battery-low
-          {% elif 'Halbe Leistung' in s %}      mdi:battery-minus-outline
+          {% elif 'Tag – Laden' in s %}         mdi:solar-power
+          {% elif 'gute Prognose' in s %}       mdi:battery-minus
+          {% elif 'gedrosselt' in s %}          mdi:battery-minus-outline
           {% elif 'Deadband' in s %}            mdi:pause-circle-outline
           {% else %}                            mdi:help-circle-outline
           {% endif %}
@@ -255,6 +273,7 @@ sensor:
     name: "Durchschnitt Verbrauch Morgen 7d"
     entity_id: sensor.verbrauch_morgen
     state_characteristic: mean
+    sampling_size: 10000
     max_age:
       days: 7
 
@@ -262,6 +281,7 @@ sensor:
     name: "Durchschnitt Verbrauch Vormittag 7d"
     entity_id: sensor.verbrauch_vormittag
     state_characteristic: mean
+    sampling_size: 10000
     max_age:
       days: 7
 
@@ -269,6 +289,7 @@ sensor:
     name: "Durchschnitt Verbrauch Nachmittag 7d"
     entity_id: sensor.verbrauch_nachmittag
     state_characteristic: mean
+    sampling_size: 10000
     max_age:
       days: 7
 
@@ -276,6 +297,7 @@ sensor:
     name: "Durchschnitt Verbrauch Abend 7d"
     entity_id: sensor.verbrauch_abend
     state_characteristic: mean
+    sampling_size: 10000
     max_age:
       days: 7
 
@@ -283,5 +305,6 @@ sensor:
     name: "Durchschnitt Verbrauch Nacht 7d"
     entity_id: sensor.verbrauch_nacht
     state_characteristic: mean
+    sampling_size: 10000
     max_age:
       days: 7

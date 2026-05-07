@@ -33,7 +33,6 @@ variables:
 
   # Prognose-Flags: states sind Strings 'True'/'False' (s. template.yml)
   ist_nacht:        "{{ is_state('binary_sensor.ist_nacht', 'on') }}"
-  prog_stunde_hoch: "{{ is_state('sensor.pv_prognose_stunde_hoch', 'True') }}"
   prog_heute_hoch:  "{{ is_state('sensor.pv_prognose_heute_hoch',  'True') }}"
   prog_morgen_hoch: "{{ is_state('sensor.pv_prognose_morgen_hoch', 'True') }}"
 
@@ -59,10 +58,12 @@ action:
           - choose:
 
               # 🆘 Notladen aus Netz: Heute & Morgen schlecht & SoC kritisch
+              # Nur wenn keine Einspeisung anliegt (sehr selten nachts, aber abgesichert).
               - conditions: >
                   {{ not prog_heute_hoch
                      and not prog_morgen_hoch
-                     and soc < (soc_min + notlade_offset) }}
+                     and soc < (soc_min + notlade_offset)
+                     and netz < deadband }}
                 sequence:
                   - service: input_text.set_value
                     target:
@@ -80,7 +81,7 @@ action:
                     data:
                       value: "{{ [notlade_power, max_lade] | min | int }}"
 
-              # Morgen viel PV erwartet -> Platz schaffen -> 120% Leistung um evtl. Schwankungen auszugleichen
+              # Morgen viel PV erwartet -> Platz schaffen -> 110% Leistung um evtl. Schwankungen auszugleichen
               - conditions: >
                   {{ prog_morgen_hoch
                      and soc > soc_min
@@ -90,7 +91,7 @@ action:
                     target:
                       entity_id: input_text.zendure_status
                     data:
-                      value: "🌙 Nacht – Platz schaffen (120%)"
+                      value: "🌙 Nacht – Platz schaffen (110%)"
                   - service: select.select_option
                     target:
                       entity_id: select.solarflow_2400_ac_ac_mode
@@ -100,7 +101,7 @@ action:
                     target:
                       entity_id: number.solarflow_2400_ac_output_limit
                     data:
-                      value: "{{ min(netz_abs * 6 / 5, max_entlade) | int }}"
+                      value: "{{ min(netz_abs * 11 / 10, max_entlade) | int }}"
 
               # Morgen wenig PV -> Reserve über soc_min halten, 80% Leistung
               - conditions: >
@@ -151,7 +152,7 @@ action:
             target:
               entity_id: input_text.zendure_status
             data:
-              value: "☀️ Tag – Laden (80%)"
+              value: "☀️ Tag – Laden (100%)"
           - service: select.select_option
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
@@ -161,44 +162,26 @@ action:
             target:
               entity_id: number.solarflow_2400_ac_input_limit
             data:
-              value: "{{ min(netz_abs * 3 / 4, max_lade) | int }}"
+              value: "{{ min(netz_abs, max_lade) | int }}"
 
       # =========================================================================
-      # 🟢 TAG – Netzbezug -> entladen, Aggressivität nach Prognose + Verbrauch
+      # 🟢 TAG – Netzbezug -> entladen
+      # Throttling übernimmt der Template-Sensor "Zendure Max Entladeleistung"
+      # (SoC/Prognose/Reserve-abhängig). Hier: einfach 100% des Bezugs decken,
+      # gecapped durch max_entlade. Das vermeidet doppelte Drosselung.
       # =========================================================================
       - conditions: "{{ netz < -deadband and soc > soc_min }}"
         sequence:
-          - variables:
-              # Schalter: Verbrauchsprognose nutzen? (input_boolean in HA anlegen)
-              nutze_verbrauch: "{{ is_state('input_boolean.zendure_verbrauchsprognose', 'on') }}"
-              # Erwarteter Verbrauch der nächsten Tageszeit (7d-Schnitt in W)
-              erwartet: "{{ states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) }}"
-              # Verfügbare Energie im Speicher über soc_min
-              # Gesamtkapazität aus sensor.solarflow_2400_ac_total_kwh (kWh → Wh)
-              kapazitaet_wh: "{{ states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000 }}"
-              reserve_wh: "{{ ((soc - soc_min) / 100 * kapazitaet_wh) | int }}"
-              # Dauer der nächsten Periode in Stunden (Durchschnitt ~4h)
-              naechste_dauer: >
-                {% set n = states('sensor.naechste_tageszeit') %}
-                {% if n == 'Morgen' %}4{% elif n == 'Vormittag' %}2{% elif n == 'Nachmittag' %}5{% elif n == 'Abend' %}5{% else %}8{% endif %}
-              # Geschätzter Bedarf der nächsten Periode (Wh)
-              naechste_bedarf_wh: "{{ (erwartet * naechste_dauer | float) | int }}"
-              # Status-Text passend zum tatsächlich gewählten Sub-Zweig
-              tag_status: >
-                {% if prog_heute_hoch or prog_morgen_hoch %}
-                  🟢 Tag – Voll entladen (100%)
-                {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
-                  🟡 Tag – Moderat entladen (Reserve reicht - 66%)
-                {% elif nutze_verbrauch %}
-                  🔴 Tag – Gedrosselt (Reserve knapp - 33%)
-                {% else %}
-                  🟡 Tag – Halbe Leistung (Prognose aus - 50%)
-                {% endif %}
           - service: input_text.set_value
             target:
               entity_id: input_text.zendure_status
             data:
-              value: "{{ tag_status | trim }}"
+              value: >
+                {% if prog_heute_hoch or prog_morgen_hoch %}
+                  🟢 Tag – Entladen (gute Prognose)
+                {% else %}
+                  🟡 Tag – Entladen (gedrosselt via max_entlade)
+                {% endif %}
           - service: select.select_option
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
@@ -208,16 +191,7 @@ action:
             target:
               entity_id: number.solarflow_2400_ac_output_limit
             data:
-              value: >
-                {% if prog_heute_hoch or prog_morgen_hoch %}
-                  {{ min(netz_abs, max_entlade) | int }}
-                {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
-                  {{ min((netz_abs * 2 / 3), max_entlade) | int }}
-                {% elif nutze_verbrauch %}
-                  {{ min((netz_abs / 3), max_entlade) | int }}
-                {% else %}
-                  {{ min((netz_abs / 2), max_entlade) | int }}
-                {% endif %}
+              value: "{{ min(netz_abs, max_entlade) | int }}"
 
     # ===========================================================================
     # 🟰 Default – Deadband oder SoC-Grenze: Speicher passiv
