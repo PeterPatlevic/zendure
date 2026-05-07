@@ -115,32 +115,40 @@ Einheitliche Regel: `min(|netz|, max_entlade)`. Die gesamte Drosselung (SoC, Pro
 
 ## Dynamische Leistungs-Caps (`template.yml`)
 
+Jeder Cap-Sensor hat einen begleitenden **Status-Sensor**, der den aktuell aktiven Zweig als Text + Icon anzeigt – ideal fürs Dashboard.
+
+| Wert-Sensor (W) | Status-Sensor (Text + Icon) |
+|---|---|
+| `sensor.zendure_max_ladeleistung` | `sensor.zendure_max_ladeleistung_status` |
+| `sensor.zendure_max_entladeleistung` | `sensor.zendure_max_entladeleistung_status` |
+
 ### Max Ladeleistung
 
 Kernfrage: *"Wie schnell laden?"* – Bei schlechter Prognose aggressiv, bei guter sanfter (schont Batterie).
 
-| Bedingung | Leistung | Begründung |
+| Bedingung | Leistung | Status |
 |---|---|---|
-| Basiswert | 800 W | Maximal, wenn nichts dagegen spricht |
-| `soc >= soc_max` | 0 W      | Voll, nicht überladen |
-| Tagesprognose schlecht | 1/1      | Jede kWh mitnehmen die kommt |
-| Gute Prognose, fast voll (< 10% Platz) | 1/3      | Sanft vollladen, PV kommt noch |
-| Gute Prognose + gerade viel PV | 2/3      | Moderat, es kommt noch mehr |
-| Gute Prognose, noch Platz, gerade wenig PV | 1/1 | Normal laden wenn's da ist |
+| Basiswert | 800 W | – |
+| `soc >= soc_max` | 0 W | 🚫 Voll – kein Laden |
+| Tagesprognose schlecht | 1/1 | 🚀 Aggressiv – schlechte Prognose |
+| Gute Prognose, fast voll (< 10% Platz) | 1/3 | 🐢 Sanft – fast voll |
+| Gute Prognose + gerade viel PV | 2/3 | 🐇 Moderat – viel PV erwartet |
+| Gute Prognose, noch Platz, gerade wenig PV | 1/1 | ⚡ Normal – Standardrate |
 
 ### Max Entladeleistung
 
 Kernfrage: *"Wie viel können wir uns leisten?"* – Prognose bestimmt Aggressivität, SoC-Reserve drosselt.
 
-| Bedingung | Leistung | Begründung |
+| Bedingung | Leistung | Status |
 |---|---|---|
-| Basiswert | 800 W | Maximal, wenn nichts dagegen spricht |
-| `soc <= soc_min` | 0 W | Leer, Schutz |
-| Morgen kommt PV & Reserve > 20% | 1/1 | Wird morgen sicher aufgefüllt |
-| Heute kommt noch PV & Reserve > 15% | 3/4 | Wird heute teilweise aufgefüllt |
-| Schlechte Prognose, Reserve > 30% | 1/2 | Viel Puffer, maßvoll nutzen |
-| Schlechte Prognose, Reserve > 10% | 1/4 | Wenig Puffer, sparsam |
-| Knapp über soc_min | 1/6 | Notreserve dehnen |
+| Basiswert | 800 W | – |
+| `soc <= soc_min` | 0 W | 🚫 Leer – kein Entladen |
+| Morgen kommt PV & Reserve > 20% | 1/1 | 🚀 Voll – Morgen kommt PV |
+| Heute kommt noch PV & Reserve > 15% | 3/4 | 🟢 Moderat – Heute kommt PV |
+| Schlechte Prognose, Reserve > 30% | 1/2 | 🟡 Halb – viel Reserve |
+| Schlechte Prognose, Reserve > 10% | 1/4 | 🟠 Vorsichtig – wenig Reserve |
+| Knapp über soc_min | 1/6 | 🔴 Notreserve – knapp über Min |
+| Verbrauchs-Cap aktiv (s.u.) | max 200 W | 🛡️ Verbrauchs-Cap (200 W) |
 
 > `reserve` = `soc - soc_min` (nutzbarer Bereich über dem Minimum)
 
