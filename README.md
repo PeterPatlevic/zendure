@@ -92,7 +92,7 @@ Trigger: jede Minute (`time_pattern /1`), `mode: single`.
 | # | Branch | Bedingung | Aktion                                            |
 |---|---|---|---------------------------------------------------|
 | 1 | 🌙 Nacht – Notladen | `ist_nacht` + heute & morgen schlecht + `soc < soc_min + 10` | Mode `input`, 200 W aus Netz                      |
-| 2 | 🌙 Nacht – Platz schaffen | `ist_nacht` + `prog_morgen_hoch` + `soc > soc_min` + `netz < -50` | Mode `output`, `min(\|120% netz\|, max_entlade)`  |
+| 2 | 🌙 Nacht – Platz schaffen | `ist_nacht` + `prog_morgen_hoch` + `soc > soc_min` + `netz < -50` | Mode `output`, `min(\|110% netz\|, max_entlade)` |
 | 3 | 🌙 Nacht – Schonen | `ist_nacht` + morgen schlecht + `soc > soc_min + 15` + `netz < -50` | Mode `output`, `min(\|80% netz\|, max_entlade)` |
 | 4 | 🌙 Nacht – Default | `ist_nacht` (kein Match oben) | Limits = 0 (passiv)                               |
 | 5 | ☀️ Tag – Überschuss | `netz > 50` + `soc < soc_max` | Mode `input`, `min(\|netz\|, max_lade)` |
@@ -115,12 +115,14 @@ Einheitliche Regel: `min(|netz|, max_entlade)`. Die gesamte Drosselung (SoC, Pro
 
 ## Dynamische Leistungs-Caps (`template.yml`)
 
-Jeder Cap-Sensor hat einen begleitenden **Status-Sensor**, der den aktuell aktiven Zweig als Text + Icon anzeigt – ideal fürs Dashboard.
+Wert + Status + Icon werden im **gleichen Template-Sensor** berechnet. Der Wert ist der `state`, der Status-Text liegt als Attribut `status`, das Icon als Attribut `icon`. Die separaten Status-Sensoren sind nur dünne Reader (`state_attr(... 'status')` / `state_attr(... 'icon')`).
+
+Innerhalb eines Wert-Sensors steht die if-elif-Kette dreimal (state, attr.status, attr.icon) – HA evaluiert jedes Template eigenständig. Alle drei Blöcke sind aber **zeilengleich strukturiert**: jeder Branch setzt `ns.cap`, `ns.status` und `ns.icon` in einer Zeile, sodass Drift sofort sichtbar wäre.
 
 | Wert-Sensor (W) | Status-Sensor (Text + Icon) |
 |---|---|
-| `sensor.zendure_max_ladeleistung` | `sensor.zendure_max_ladeleistung_status` |
-| `sensor.zendure_max_entladeleistung` | `sensor.zendure_max_entladeleistung_status` |
+| `sensor.zendure_max_ladeleistung` (Attr.: `status`, `icon`) | `sensor.zendure_max_ladeleistung_status` |
+| `sensor.zendure_max_entladeleistung` (Attr.: `status`, `icon`) | `sensor.zendure_max_entladeleistung_status` |
 
 ### Max Ladeleistung
 
@@ -148,13 +150,13 @@ Kernfrage: *"Wie viel können wir uns leisten?"* – Prognose bestimmt Aggressiv
 | Schlechte Prognose, Reserve > 30% | 1/2 | 🟡 Halb – viel Reserve |
 | Schlechte Prognose, Reserve > 10% | 1/4 | 🟠 Vorsichtig – wenig Reserve |
 | Knapp über soc_min | 1/6 | 🔴 Notreserve – knapp über Min |
-| Verbrauchs-Cap aktiv (s.u.) | max 200 W | 🛡️ Verbrauchs-Cap (200 W) |
+| Verbrauchs-Cap aktiv (s.u.) | max 200 W (= base/4) | 🛡️ Verbrauchs-Cap (25%) |
 
 > `reserve` = `soc - soc_min` (nutzbarer Bereich über dem Minimum)
 
 **Optionaler zusätzlicher Cap durch Verbrauchsprognose:**
 
-Wenn `input_boolean.zendure_verbrauchsprognose = on` UND keine PV-Prognose-Hilfe (heute & morgen schlecht) UND die Speicher-Reserve in Wh kleiner ist als der erwartete Bedarf der **nächsten** Tageszeit-Periode (7-Tage-Mittel × Periodendauer), wird zusätzlich auf maximal `base/4` (= 200 W) gedeckelt.
+Wenn `input_boolean.zendure_verbrauchsprognose = on` UND keine PV-Prognose-Hilfe (heute & morgen schlecht) UND die Speicher-Reserve in Wh kleiner ist als der erwartete Bedarf der **nächsten** Tageszeit-Periode (7-Tage-Mittel × Periodendauer) UND der Basis-Cap > 200 W liegt, wird zusätzlich auf maximal `base/4` (= 200 W) gedeckelt. Status: `🛡️ Verbrauchs-Cap (25%)`.
 
 | Toggle | Verhalten |
 |---|---|

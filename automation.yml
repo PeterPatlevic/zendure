@@ -91,7 +91,7 @@ action:
                     target:
                       entity_id: input_text.zendure_status
                     data:
-                      value: "🌙 Nacht – Platz schaffen (110%)"
+                      value: "🌙 Nacht – Platz schaffen (110% Netz Bezug)"
                   - service: select.select_option
                     target:
                       entity_id: select.solarflow_2400_ac_ac_mode
@@ -113,7 +113,7 @@ action:
                     target:
                       entity_id: input_text.zendure_status
                     data:
-                      value: "🌙 Nacht – Schonend entladen (80%)"
+                      value: "🌙 Nacht – Schonend entladen (80% Netz Bezug)"
                   - service: select.select_option
                     target:
                       entity_id: select.solarflow_2400_ac_ac_mode
@@ -152,7 +152,7 @@ action:
             target:
               entity_id: input_text.zendure_status
             data:
-              value: "☀️ Tag – Laden (100%)"
+              value: "☀️ Tag – Laden (100% Netz Einspeisung)"
           - service: select.select_option
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
@@ -176,12 +176,7 @@ action:
             target:
               entity_id: input_text.zendure_status
             data:
-              value: >
-                {% if prog_heute_hoch or prog_morgen_hoch %}
-                  🟢 Tag – Entladen (gute Prognose)
-                {% else %}
-                  🟡 Tag – Entladen (gedrosselt via max_entlade)
-                {% endif %}
+              value: "🟡 Tag – Entladen (100% Netz Bezug)"
           - service: select.select_option
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
