@@ -114,33 +114,26 @@ template:
         unit_of_measurement: "W"
 
         variables:
-          base: 800
-
-          soc: "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
-          soc_min: "{{ states('sensor.solarflow_2400_ac_min_soc') | float(10) }}"
-
-          prog_heute: "{{ is_state('sensor.pv_prognose_heute_hoch', 'True') }}"
-          prog_morgen: "{{ is_state('sensor.pv_prognose_morgen_hoch', 'True') }}"
-
-          reserve: "{{ soc - soc_min }}"
-
-          use_verbrauch: "{{ is_state('input_boolean.zendure_verbrauchsprognose', 'on') }}"
-
-          kapazitaet_wh: "{{ states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000 }}"
-          reserve_wh: "{{ (reserve / 100 * kapazitaet_wh) | int }}"
-
-          erwartet: "{{ states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) }}"
-          tageszeit: "{{ states('sensor.naechste_tageszeit') }}"
-          dauer: "{{ {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8}.get(tageszeit, 4) }}"
-          bedarf_wh: "{{ (erwartet * dauer) | int }}"
-
-          verbrauch_cap: >
-            {{ use_verbrauch
-               and not prog_heute
-               and not prog_morgen
-               and reserve_wh < bedarf_wh }}
-
           result: >
+            {% set base = 800 %}
+            {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+            {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(10) %}
+            {% set reserve = soc - soc_min %}
+            {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
+            {% set prog_morgen = is_state('sensor.pv_prognose_morgen_hoch', 'True') %}
+            {% set use_verbrauch = is_state('input_boolean.zendure_verbrauchsprognose', 'on') %}
+            {% set kapazitaet_wh =
+                 states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000 %}
+            {% set reserve_wh = (reserve / 100 * kapazitaet_wh) | int %}
+            {% set erwartet =
+                 states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
+            {% set n = states('sensor.naechste_tageszeit') %}
+            {% set dauer =
+                 {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8}.get(n, 4) %}
+            {% set bedarf_wh = (erwartet * dauer) | int %}
+            {% set verbrauch_cap =
+                 use_verbrauch and not prog_heute and not prog_morgen and reserve_wh < bedarf_wh %}
+
             {% if soc <= soc_min %}
               {{ dict(cap=0,
                       status='🚫 Leer – kein Entladen',
