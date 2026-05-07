@@ -9,7 +9,7 @@
 #   - Schlechte Prognose -> Speicher schonen (Reserve halten)
 #   - Gute Prognose -> Speicher voll nutzen
 ###############################################################################
-alias: Zendure SolarFlow AC – Automatik mit Prognose 0.2.0
+alias: Zendure SolarFlow AC – Automatik mit Prognose 0.3.1
 mode: single
 
 trace:

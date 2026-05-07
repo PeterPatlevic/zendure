@@ -67,8 +67,6 @@ template:
             prog_stunde: "{{ is_state('sensor.pv_prognose_stunde_hoch', 'True') }}"
 
             result: >
-              {% set ns = namespace(cap=base, status='', icon='') %}
-              
               {% if soc >= soc_max %}
                 {{ dict(cap = 0,
                         status = '🚫 Voll – kein Laden',
@@ -84,13 +82,12 @@ template:
               {% elif prog_stunde %}
                 {{ dict(cap = (base * 2 / 3) | int,
                         status = '🐇 Moderat – viel PV erwartet',
-                        icon = 'mdi:battery-charging-medium') %}
+                        icon = 'mdi:battery-charging-medium') }}
               {% else %}
                 {{ dict(cap = base,
                         status = '⚡ Normal – Standardrate',
                         icon = 'mdi:battery-charging') }}
               {% endif %}
-              {{ ns.cap | int }}
 
         state: "{{ result.cap }}"
 
