@@ -112,93 +112,24 @@ template:
             {{ (base / 6) | int }}
           {% endif %}
 
-      # Aktueller Steuer-Zustand (spiegelt die choose-Logik aus automation.yml)
+      # Aktueller Steuer-Zustand: spiegelt EXAKT den zuletzt ausgeführten
+      # Branch der automation.yml. Quelle: input_text.zendure_status
+      # (wird in jedem choose-Zweig als erste Aktion gesetzt).
       - name: "Zendure Steuerung Status"
+        state: "{{ states('input_text.zendure_status') }}"
         icon: >
-          {% set netz = states('sensor.nettoleistung_netz_mittelwert') | float(0) %}
-          {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
-          {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(10) %}
-          {% set soc_max = states('number.solarflow_2400_ac_soc_set') | float(80) %}
-          {% set ist_nacht = is_state('binary_sensor.ist_nacht', 'on') %}
-          {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
-          {% set prog_morgen = is_state('sensor.pv_prognose_morgen_hoch', 'True') %}
-          {% set deadband = 50 %}
-          {% set reserve_offset = 15 %}
-          {% set notlade_offset = 10 %}
-          {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
-          {% set kapazitaet_wh = states('sensor.solarflow_2400_ac_total_kwh') | float(2.4) * 1000 %}
-          {% set reserve_wh = ((soc - soc_min) / 100 * kapazitaet_wh) | int %}
-          {% set n = states('sensor.naechste_tageszeit') %}
-          {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8} %}
-          {% set naechste_bedarf_wh = (erwartet * dauer.get(n, 4)) | int %}
-          {% if ist_nacht %}
-            {% if not prog_heute and not prog_morgen and soc < (soc_min + notlade_offset) %}
-              mdi:battery-charging-wireless-alert
-            {% elif prog_morgen and soc > soc_min and netz < -deadband %}
-              mdi:battery-arrow-down
-            {% elif not prog_morgen and soc > (soc_min + reserve_offset) and netz < -deadband %}
-              mdi:battery-arrow-down-outline
-            {% else %}
-              mdi:sleep
-            {% endif %}
-          {% elif netz > deadband and soc < soc_max %}
-            mdi:solar-power
-          {% elif netz < -deadband and soc > soc_min %}
-            {% set nutze_verbrauch = is_state('input_boolean.zendure_verbrauchsprognose', 'on') %}
-            {% if prog_heute or prog_morgen %}
-              mdi:battery-minus
-            {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
-              mdi:battery-minus-outline
-            {% elif nutze_verbrauch %}
-              mdi:battery-low
-            {% else %}
-              mdi:battery-minus-outline
-            {% endif %}
-          {% else %}
-            mdi:pause-circle-outline
-          {% endif %}
-        state: >
-          {% set netz = states('sensor.nettoleistung_netz_mittelwert') | float(0) %}
-          {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
-          {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(10) %}
-          {% set soc_max = states('number.solarflow_2400_ac_soc_set') | float(80) %}
-          {% set ist_nacht = is_state('binary_sensor.ist_nacht', 'on') %}
-          {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
-          {% set prog_morgen = is_state('sensor.pv_prognose_morgen_hoch', 'True') %}
-          {% set deadband = 50 %}
-          {% set reserve_offset = 15 %}
-          {% set notlade_offset = 10 %}
-          {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
-          {% set kapazitaet_wh = states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000 %}
-          {% set reserve_wh = ((soc - soc_min) / 100 * kapazitaet_wh) | int %}
-          {% set n = states('sensor.naechste_tageszeit') %}
-          {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8} %}
-          {% set naechste_bedarf_wh = (erwartet * dauer.get(n, 4)) | int %}
-          {% if ist_nacht %}
-            {% if not prog_heute and not prog_morgen and soc < (soc_min + notlade_offset) %}
-              🆘 Nacht – Notladen
-            {% elif prog_morgen and soc > soc_min and netz < -deadband %}
-              🌙 Nacht – Platz schaffen
-            {% elif not prog_morgen and soc > (soc_min + reserve_offset) and netz < -deadband %}
-              🌙 Nacht – Schonend entladen
-            {% else %}
-              🌙 Nacht – Passiv
-            {% endif %}
-          {% elif netz > deadband and soc < soc_max %}
-            ☀️ Tag – Laden
-          {% elif netz < -deadband and soc > soc_min %}
-            {% set nutze_verbrauch = is_state('input_boolean.zendure_verbrauchsprognose', 'on') %}
-            {% if prog_heute or prog_morgen %}
-              🟢 Tag – Voll entladen
-            {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
-              🟡 Tag – Moderat entladen (Reserve reicht)
-            {% elif nutze_verbrauch %}
-              🔴 Tag – Gedrosselt (Reserve knapp)
-            {% else %}
-              🟡 Tag – Halbe Leistung (Prognose aus)
-            {% endif %}
-          {% else %}
-            🟰 Passiv (Deadband)
+          {% set s = states('input_text.zendure_status') %}
+          {% if 'Notladen' in s %}              mdi:battery-charging-wireless-alert
+          {% elif 'Platz schaffen' in s %}      mdi:battery-arrow-down
+          {% elif 'Schonend' in s %}            mdi:battery-arrow-down-outline
+          {% elif 'Nacht – Passiv' in s %}      mdi:sleep
+          {% elif 'Laden' in s %}               mdi:solar-power
+          {% elif 'Voll entladen' in s %}       mdi:battery-minus
+          {% elif 'Moderat' in s %}             mdi:battery-minus-outline
+          {% elif 'Gedrosselt' in s %}          mdi:battery-low
+          {% elif 'Halbe Leistung' in s %}      mdi:battery-minus-outline
+          {% elif 'Deadband' in s %}            mdi:pause-circle-outline
+          {% else %}                            mdi:help-circle-outline
           {% endif %}
 
   - binary_sensor:

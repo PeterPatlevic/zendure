@@ -64,6 +64,11 @@ action:
                      and not prog_morgen_hoch
                      and soc < (soc_min + notlade_offset) }}
                 sequence:
+                  - service: input_text.set_value
+                    target:
+                      entity_id: input_text.zendure_status
+                    data:
+                      value: "🆘 Nacht – Notladen"
                   - service: select.select_option
                     target:
                       entity_id: select.solarflow_2400_ac_ac_mode
@@ -81,6 +86,11 @@ action:
                      and soc > soc_min
                      and netz < -deadband }}
                 sequence:
+                  - service: input_text.set_value
+                    target:
+                      entity_id: input_text.zendure_status
+                    data:
+                      value: "🌙 Nacht – Platz schaffen (120%)"
                   - service: select.select_option
                     target:
                       entity_id: select.solarflow_2400_ac_ac_mode
@@ -98,6 +108,11 @@ action:
                      and soc > (soc_min + reserve_offset)
                      and netz < -deadband }}
                 sequence:
+                  - service: input_text.set_value
+                    target:
+                      entity_id: input_text.zendure_status
+                    data:
+                      value: "🌙 Nacht – Schonend entladen (80%)"
                   - service: select.select_option
                     target:
                       entity_id: select.solarflow_2400_ac_ac_mode
@@ -111,6 +126,11 @@ action:
 
             # Default in der Nacht: passiv (kein Laden aus Netz, kein Entladen)
             default:
+              - service: input_text.set_value
+                target:
+                  entity_id: input_text.zendure_status
+                data:
+                  value: "🌙 Nacht – Passiv"
               - service: number.set_value
                 target:
                   entity_id: number.solarflow_2400_ac_input_limit
@@ -127,6 +147,11 @@ action:
       # =========================================================================
       - conditions: "{{ netz > deadband and soc < soc_max }}"
         sequence:
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.zendure_status
+            data:
+              value: "☀️ Tag – Laden (80%)"
           - service: select.select_option
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
@@ -136,7 +161,7 @@ action:
             target:
               entity_id: number.solarflow_2400_ac_input_limit
             data:
-              value: "{{ min(netz_abs * 3 / 4), max_lade) | int }}"
+              value: "{{ min(netz_abs * 3 / 4, max_lade) | int }}"
 
       # =========================================================================
       # 🟢 TAG – Netzbezug -> entladen, Aggressivität nach Prognose + Verbrauch
@@ -158,6 +183,22 @@ action:
                 {% if n == 'Morgen' %}4{% elif n == 'Vormittag' %}2{% elif n == 'Nachmittag' %}5{% elif n == 'Abend' %}5{% else %}8{% endif %}
               # Geschätzter Bedarf der nächsten Periode (Wh)
               naechste_bedarf_wh: "{{ (erwartet * naechste_dauer | float) | int }}"
+              # Status-Text passend zum tatsächlich gewählten Sub-Zweig
+              tag_status: >
+                {% if prog_heute_hoch or prog_morgen_hoch %}
+                  🟢 Tag – Voll entladen (100%)
+                {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
+                  🟡 Tag – Moderat entladen (Reserve reicht - 66%)
+                {% elif nutze_verbrauch %}
+                  🔴 Tag – Gedrosselt (Reserve knapp - 33%)
+                {% else %}
+                  🟡 Tag – Halbe Leistung (Prognose aus - 50%)
+                {% endif %}
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.zendure_status
+            data:
+              value: "{{ tag_status | trim }}"
           - service: select.select_option
             target:
               entity_id: select.solarflow_2400_ac_ac_mode
@@ -169,16 +210,12 @@ action:
             data:
               value: >
                 {% if prog_heute_hoch or prog_morgen_hoch %}
-                  {# Gute Prognose: voll entladen, wird wieder aufgefüllt #}
                   {{ min(netz_abs, max_entlade) | int }}
                 {% elif nutze_verbrauch and reserve_wh > naechste_bedarf_wh %}
-                  {# Verbrauchsprognose aktiv + genug Reserve: moderat #}
                   {{ min((netz_abs * 2 / 3), max_entlade) | int }}
                 {% elif nutze_verbrauch %}
-                  {# Verbrauchsprognose aktiv + Reserve knapp: stark drosseln #}
                   {{ min((netz_abs / 3), max_entlade) | int }}
                 {% else %}
-                  {# Verbrauchsprognose deaktiviert: einfache 50%-Logik #}
                   {{ min((netz_abs / 2), max_entlade) | int }}
                 {% endif %}
 
@@ -186,6 +223,11 @@ action:
     # 🟰 Default – Deadband oder SoC-Grenze: Speicher passiv
     # ===========================================================================
     default:
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.zendure_status
+        data:
+          value: "🟰 Passiv (Deadband)"
       - service: number.set_value
         target:
           entity_id: number.solarflow_2400_ac_input_limit
@@ -196,3 +238,4 @@ action:
           entity_id: number.solarflow_2400_ac_output_limit
         data:
           value: 0
+
