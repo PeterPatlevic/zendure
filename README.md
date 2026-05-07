@@ -46,15 +46,15 @@ Trigger: jede Minute (`time_pattern /1`), `mode: single`.
 
 ### Branches (Reihenfolge = Priorität)
 
-| # | Branch | Bedingung | Aktion |
-|---|---|---|---|
-| 1 | 🌙 Nacht – Notladen | `ist_nacht` + heute & morgen schlecht + `soc < soc_min + 10` | Mode `input`, 200 W aus Netz |
-| 2 | 🌙 Nacht – Platz schaffen | `ist_nacht` + `prog_morgen_hoch` + `soc > soc_min` + `netz < -50` | Mode `output`, `min(\|netz\|, max_entlade)` |
-| 3 | 🌙 Nacht – Schonen | `ist_nacht` + morgen schlecht + `soc > soc_min + 15` + `netz < -50` | Mode `output`, `min(\|netz/2\|, max_entlade)` |
-| 4 | 🌙 Nacht – Default | `ist_nacht` (kein Match oben) | Limits = 0 (passiv) |
-| 5 | ☀️ Tag – Überschuss | `netz > 50` + `soc < soc_max` | Mode `input`, `min(¾·netz, max_lade)` |
-| 6 | 🟢 Tag – Bezug | `netz < -50` + `soc > soc_min` | Mode `output`, prognoseabhängig (s.u.) |
-| 7 | 🟰 Default | Deadband oder SoC-Grenze | Limits = 0 (passiv) |
+| # | Branch | Bedingung | Aktion                                            |
+|---|---|---|---------------------------------------------------|
+| 1 | 🌙 Nacht – Notladen | `ist_nacht` + heute & morgen schlecht + `soc < soc_min + 10` | Mode `input`, 200 W aus Netz                      |
+| 2 | 🌙 Nacht – Platz schaffen | `ist_nacht` + `prog_morgen_hoch` + `soc > soc_min` + `netz < -50` | Mode `output`, `min(\|120% netz\|, max_entlade)`  |
+| 3 | 🌙 Nacht – Schonen | `ist_nacht` + morgen schlecht + `soc > soc_min + 15` + `netz < -50` | Mode `output`, `min(\|80% netz\|, max_entlade)` |
+| 4 | 🌙 Nacht – Default | `ist_nacht` (kein Match oben) | Limits = 0 (passiv)                               |
+| 5 | ☀️ Tag – Überschuss | `netz > 50` + `soc < soc_max` | Mode `input`, `min(¾·netz, max_lade)`             |
+| 6 | 🟢 Tag – Bezug | `netz < -50` + `soc > soc_min` | Mode `output`, prognoseabhängig (s.u.)            |
+| 7 | 🟰 Default | Deadband oder SoC-Grenze | Limits = 0 (passiv)                               |
 
 **Tag-Entladung (Branch 6):**
 - Gute Prognose (heute ODER morgen): `min(|netz|, max_entlade)` – voll decken
