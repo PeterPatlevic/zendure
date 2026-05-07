@@ -133,11 +133,21 @@ template:
           {% endif %}
 
   - binary_sensor:
-      # Nachtsensor - Sonnenaufgang plus 2 Std., Sonnenuntergang minus 3 Std.
+      # Nachtsensor: "Nacht" = Sonnenuntergang -3h ... Sonnenaufgang +2h
+      # nutzt sun.sun Attribute (immer ISO mit Zeitzone) und vergleicht mit now().
+      # Robust gegenüber Zeitzonen, da as_timestamp intern UTC nutzt.
       - name: "Ist Nacht"
         state: >
-          {{ (states('sensor.sun_next_rising') | as_timestamp + 7200)
-            < states('sensor.sun_next_setting') | as_timestamp - 10800 }}
+          {% set sunrise = as_timestamp(state_attr('sun.sun', 'next_rising')) %}
+          {% set sunset  = as_timestamp(state_attr('sun.sun', 'next_setting')) %}
+          {% set now_ts  = as_timestamp(now()) %}
+          {% if sunrise < sunset %}
+            {# Sonne ist unten -> aktuell Nacht, bis sunrise + 2h #}
+            {{ now_ts < (sunrise + 7200) }}
+          {% else %}
+            {# Sonne ist oben -> Nacht beginnt wieder ab sunset - 3h #}
+            {{ now_ts > (sunset - 10800) }}
+          {% endif %}
 
   ############################################
   # TAGESZEIT-BASIERTE VERBRAUCHSANALYSE

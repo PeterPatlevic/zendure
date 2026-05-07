@@ -163,7 +163,7 @@ States sind Strings `'True'` / `'False'` (Großschreibung!).
 
 ## Nachtsensor
 
-`binary_sensor.ist_nacht`: **on** wenn Sonnenaufgang + 2h noch vor Sonnenuntergang − 3h liegt.  
+`binary_sensor.ist_nacht`: **on**, wenn Sonnenaufgang + 2h noch vor Sonnenuntergang − 3h liegt.  
 → Nacht beginnt früher (3h vor Sunset) und endet später (2h nach Sunrise).
 
 ---
