@@ -58,42 +58,58 @@ template:
       # Status/Icon als Attribute). "Zendure Max Ladeleistung Status" liest sie.
       - name: "Zendure Max Ladeleistung"
         unit_of_measurement: "W"
-
-        variables:
-            base: 800
-            soc: "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
-            soc_max: "{{ states('number.solarflow_2400_ac_soc_set') | float(80) }}"
-            prog_heute: "{{ is_state('sensor.pv_prognose_heute_hoch', 'True') }}"
-            prog_stunde: "{{ is_state('sensor.pv_prognose_stunde_hoch', 'True') }}"
-
-            result: >
-              {% if soc >= soc_max %}
-                {{ dict(cap = 0,
-                        status = '🚫 Voll – kein Laden',
-                        icon = 'mdi:battery-check') }}
-              {% elif not prog_heute %}
-                {{ dict(cap = base,
-                        status = '🚀 Aggressiv – schlechte Prognose',
-                        icon = 'mdi:battery-charging-high') }}
-              {% elif soc > (soc_max - 10) %}
-                {{ dict(cap = (base / 3) | int,
-                        status = '🐢 Sanft – fast voll',
-                        icon = 'mdi:battery-charging-low') }}
-              {% elif prog_stunde %}
-                {{ dict(cap = (base * 2 / 3) | int,
-                        status = '🐇 Moderat – viel PV erwartet',
-                        icon = 'mdi:battery-charging-medium') }}
-              {% else %}
-                {{ dict(cap = base,
-                        status = '⚡ Normal – Standardrate',
-                        icon = 'mdi:battery-charging') }}
-              {% endif %}
-
-        state: "{{ result.cap }}"
-
+        state: >
+          {% set base = 800 %}
+          {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+          {% set soc_max = states('number.solarflow_2400_ac_soc_set') | float(80) %}
+          {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
+          {% set prog_stunde = is_state('sensor.pv_prognose_stunde_hoch', 'True') %}
+          {% if soc >= soc_max %}
+            0
+          {% elif not prog_heute %}
+            {{ base }}
+          {% elif soc > (soc_max - 10) %}
+            {{ (base / 3) | int }}
+          {% elif prog_stunde %}
+            {{ (base * 2 / 3) | int }}
+          {% else %}
+            {{ base }}
+          {% endif %}
         attributes:
-          status: "{{ result.status }}"
-          icon: "{{ result.icon }}"
+          status: >
+            {% set base = 800 %}
+            {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+            {% set soc_max = states('number.solarflow_2400_ac_soc_set') | float(80) %}
+            {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
+            {% set prog_stunde = is_state('sensor.pv_prognose_stunde_hoch', 'True') %}
+            {% if soc >= soc_max %}
+              🚫 Voll – kein Laden
+            {% elif not prog_heute %}
+              🚀 Aggressiv – schlechte Prognose
+            {% elif soc > (soc_max - 10) %}
+              🐢 Sanft – fast voll
+            {% elif prog_stunde %}
+              🐇 Moderat – viel PV erwartet
+            {% else %}
+              ⚡ Normal – Standardrate
+            {% endif %}
+          icon: >
+            {% set base = 800 %}
+            {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+            {% set soc_max = states('number.solarflow_2400_ac_soc_set') | float(80) %}
+            {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
+            {% set prog_stunde = is_state('sensor.pv_prognose_stunde_hoch', 'True') %}
+            {% if soc >= soc_max %}
+              mdi:battery-check
+            {% elif not prog_heute %}
+              mdi:battery-charging-high
+            {% elif soc > (soc_max - 10) %}
+              mdi:battery-charging-low
+            {% elif prog_stunde %}
+              mdi:battery-charging-medium
+            {% else %}
+              mdi:battery-charging
+            {% endif %}
 
       # Status-Sensor zur Max Ladeleistung: liest die Attribute des Wert-Sensors.
       - name: "Zendure Max Ladeleistung Status"
@@ -109,9 +125,39 @@ template:
       #   + keine PV-Prognose-Hilfe -> zusätzliches Cap auf base/4 (200 W).
       - name: "Zendure Max Entladeleistung"
         unit_of_measurement: "W"
-
-        variables:
-          result: >
+        state: >
+          {% set base = 800 %}
+          {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+          {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(10) %}
+          {% set reserve = soc - soc_min %}
+          {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
+          {% set prog_morgen = is_state('sensor.pv_prognose_morgen_hoch', 'True') %}
+          {% set use_verbrauch = is_state('input_boolean.zendure_verbrauchsprognose', 'on') %}
+          {% set kapazitaet_wh = (states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000) | int %}
+          {% set reserve_wh = ((reserve / 100) * kapazitaet_wh) | int %}
+          {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
+          {% set n = states('sensor.naechste_tageszeit') %}
+          {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8}.get(n, 4) %}
+          {% set bedarf_wh = (erwartet * dauer) | int %}
+          {% set verbrauch_cap = use_verbrauch and not prog_heute and not prog_morgen and reserve_wh < bedarf_wh %}
+          
+          {% if soc <= soc_min %}
+            0
+          {% elif prog_morgen and reserve > 20 %}
+            {{ base }}
+          {% elif prog_heute and reserve > 15 %}
+            {{ (base * 3 / 4) | int }}
+          {% elif verbrauch_cap and reserve > 30 %}
+            {{ (base / 4) | int }}
+          {% elif reserve > 30 %}
+            {{ (base / 2) | int }}
+          {% elif reserve > 10 %}
+            {{ (base / 4) | int }}
+          {% else %}
+            {{ (base / 6) | int }}
+          {% endif %}
+        attributes:
+          status: >
             {% set base = 800 %}
             {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
             {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(10) %}
@@ -119,59 +165,60 @@ template:
             {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
             {% set prog_morgen = is_state('sensor.pv_prognose_morgen_hoch', 'True') %}
             {% set use_verbrauch = is_state('input_boolean.zendure_verbrauchsprognose', 'on') %}
-            {% set kapazitaet_wh =
-                 states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000 %}
-            {% set reserve_wh = (reserve / 100 * kapazitaet_wh) | int %}
-            {% set erwartet =
-                 states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
+            {% set kapazitaet_wh = (states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000) | int %}
+            {% set reserve_wh = ((reserve / 100) * kapazitaet_wh) | int %}
+            {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
             {% set n = states('sensor.naechste_tageszeit') %}
-            {% set dauer =
-                 {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8}.get(n, 4) %}
+            {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8}.get(n, 4) %}
             {% set bedarf_wh = (erwartet * dauer) | int %}
-            {% set verbrauch_cap =
-                 use_verbrauch and not prog_heute and not prog_morgen and reserve_wh < bedarf_wh %}
-
+            {% set verbrauch_cap = use_verbrauch and not prog_heute and not prog_morgen and reserve_wh < bedarf_wh %}
+            
             {% if soc <= soc_min %}
-              {{ dict(cap=0,
-                      status='🚫 Leer – kein Entladen',
-                      icon='mdi:battery-off') }}
-
+              🚫 Leer – kein Entladen
             {% elif prog_morgen and reserve > 20 %}
-              {{ dict(cap=base,
-                      status='🚀 Voll – Morgen kommt PV',
-                      icon='mdi:battery-high') }}
-
+              🚀 Voll – Morgen kommt PV
             {% elif prog_heute and reserve > 15 %}
-              {{ dict(cap=(base * 3 / 4) | int,
-                      status='🟢 Moderat – Heute kommt PV',
-                      icon='mdi:battery-medium') }}
-
+              🟢 Moderat – Heute kommt PV
             {% elif verbrauch_cap and reserve > 30 %}
-              {{ dict(cap=(base / 4) | int,
-                      status='🛡️ Verbrauchs-Cap (25%)',
-                      icon='mdi:shield-half-full') }}
-
+              🛡️ Verbrauchs-Cap (25%)
             {% elif reserve > 30 %}
-              {{ dict(cap=(base / 2) | int,
-                      status='🟡 Halb – viel Reserve',
-                      icon='mdi:battery-50') }}
-
+              🟡 Halb – viel Reserve
             {% elif reserve > 10 %}
-              {{ dict(cap=(base / 4) | int,
-                      status='🟠 Vorsichtig – wenig Reserve',
-                      icon='mdi:battery-low') }}
-
+              🟠 Vorsichtig – wenig Reserve
             {% else %}
-              {{ dict(cap=(base / 6) | int,
-                      status='🔴 Notreserve – knapp über Min',
-                      icon='mdi:battery-alert') }}
+              🔴 Notreserve – knapp über Min
             {% endif %}
-
-        state: "{{ result.cap }}"
-
-        attributes:
-          status: "{{ result.status }}"
-          icon: "{{ result.icon }}"
+          icon: >
+            {% set base = 800 %}
+            {% set soc = states('sensor.solarflow_2400_ac_electric_level') | float(0) %}
+            {% set soc_min = states('sensor.solarflow_2400_ac_min_soc') | float(10) %}
+            {% set reserve = soc - soc_min %}
+            {% set prog_heute = is_state('sensor.pv_prognose_heute_hoch', 'True') %}
+            {% set prog_morgen = is_state('sensor.pv_prognose_morgen_hoch', 'True') %}
+            {% set use_verbrauch = is_state('input_boolean.zendure_verbrauchsprognose', 'on') %}
+            {% set kapazitaet_wh = (states('sensor.solarflow_2400_ac_total_kwh') | float(2.88) * 1000) | int %}
+            {% set reserve_wh = ((reserve / 100) * kapazitaet_wh) | int %}
+            {% set erwartet = states('sensor.erwarteter_verbrauch_naechste_periode') | float(300) %}
+            {% set n = states('sensor.naechste_tageszeit') %}
+            {% set dauer = {'Morgen':4,'Vormittag':2,'Nachmittag':5,'Abend':5,'Nacht':8}.get(n, 4) %}
+            {% set bedarf_wh = (erwartet * dauer) | int %}
+            {% set verbrauch_cap = use_verbrauch and not prog_heute and not prog_morgen and reserve_wh < bedarf_wh %}
+            
+            {% if soc <= soc_min %}
+              mdi:battery-off
+            {% elif prog_morgen and reserve > 20 %}
+              mdi:battery-high
+            {% elif prog_heute and reserve > 15 %}
+              mdi:battery-medium
+            {% elif verbrauch_cap and reserve > 30 %}
+              mdi:shield-half-full
+            {% elif reserve > 30 %}
+              mdi:battery-50
+            {% elif reserve > 10 %}
+              mdi:battery-low
+            {% else %}
+              mdi:battery-alert
+            {% endif %}
 
       # Status-Sensor zur Max Entladeleistung: liest die Attribute des Wert-Sensors.
       - name: "Zendure Max Entladeleistung Status"

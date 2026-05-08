@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="2ebbb099-df6f-4e03-8f6e-0c0556a362b1" name="Changes" comment="Entscheidung visualisiert">
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/automation.yml" beforeDir="false" afterPath="$PROJECT_DIR$/automation.yml" afterDir="false" />
+    <list default="true" id="2ebbb099-df6f-4e03-8f6e-0c0556a362b1" name="Changes" comment="Traces erhöht&#10;ABS Fehler">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/template.yml" beforeDir="false" afterPath="$PROJECT_DIR$/template.yml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -13,6 +15,7 @@
   </component>
   <component name="CopilotPersistence">
     <persistenceIdMap>
+      <entry key="_/Users/peterpatlevic/IdeaProjects/zendure" value="3DQTZ2FiYNKohGn50pqa7sEEdkl" />
       <entry key="_D:/IdeaProjects/zendure" value="3DL4ShiIVphc11rMdR1aeAclzix" />
     </persistenceIdMap>
   </component>
@@ -21,18 +24,40 @@
   </component>
   <component name="CopilotUserSelectedModel">
     <selectedModels>
-      <entry key="agent-panel" value="Claude Opus 4.6" />
-      <entry key="chat-panel" value="Claude Opus 4.6" />
+      <entry key="agent-panel" value="Claude Haiku 4.5" />
+      <entry key="chat-panel" value="Claude Haiku 4.5" />
     </selectedModels>
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="10" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 5,
-  "fromUser": false
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "PeterPatlevic"
+  }
 }]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/PeterPatlevic/zendure.git",
+    "accountId": "03a86010-55c1-4798-85e9-9009a42aeb82"
+  }
+}]]></component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5,
+  &quot;fromUser&quot;: false
+}</component>
   <component name="ProjectId" id="3DL4ShiIVphc11rMdR1aeAclzix" />
+  <component name="ProjectLevelVcsManager">
+    <OptionsSetting value="false" id="Update" />
+  </component>
   <component name="ProjectViewState">
     <option name="autoscrollFromSource" value="true" />
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -40,14 +65,24 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "SONARLINT_PRECOMMIT_ANALYSIS": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
     "git-widget-placeholder": "main",
+    "junie.onboarding.icon.badge.shown": "true",
     "kotlin-language-version-configured": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "preferences.pluginManager",
+    "to.speed.mode.migration.done": "true",
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
@@ -67,6 +102,7 @@
       <option name="presentableId" value="Default" />
       <updated>1778048017567</updated>
       <workItem from="1778048018755" duration="11553000" />
+      <workItem from="1778213277373" duration="1415000" />
     </task>
     <task id="LOCAL-00001" summary="Netz Differenz">
       <option name="closed" value="true" />
@@ -108,7 +144,15 @@
       <option name="project" value="LOCAL" />
       <updated>1778060068961</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="Traces erhöht&#10;ABS Fehler">
+      <option name="closed" value="true" />
+      <created>1778094250989</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1778094250989</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -119,7 +163,8 @@
     <MESSAGE value="Tippfehler" />
     <MESSAGE value="Max Lade-/Entladeleistung verbessert" />
     <MESSAGE value="Entscheidung visualisiert" />
-    <option name="LAST_COMMIT_MESSAGE" value="Entscheidung visualisiert" />
+    <MESSAGE value="Traces erhöht&#10;ABS Fehler" />
+    <option name="LAST_COMMIT_MESSAGE" value="Traces erhöht&#10;ABS Fehler" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>
