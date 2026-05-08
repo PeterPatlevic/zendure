@@ -45,11 +45,13 @@ Die Speicherkompensation stellt sicher, dass `netz` den **wahren Haushaltsbedarf
 Vor dem ersten Start müssen folgende Helper in Home Assistant angelegt werden  
 (**Einstellungen → Geräte & Dienste → Helfer → Helfer erstellen**):
 
-| Typ | Entity-ID | Name | Werte / Einstellung | Zweck |
-|---|---|---|---|---|
-| 🔢 Zahl | `input_number.pv_peak_leistung` | PV Peak Leistung | min 0, max 20000, Schritt 100, Einheit `W`, Default **6800** | Bezugsgröße für Prognose-Schwellen (PV-Anlagengröße in W) |
-| 🔘 Schalter | `input_boolean.zendure_verbrauchsprognose` | Zendure Verbrauchsprognose | Default an | Aktiviert das zusätzliche Verbrauchs-Cap im Template-Sensor `Zendure Max Entladeleistung` (drosselt bei knapper Reserve auf 200 W). Aus = nur SoC + PV-Prognose |
-| 📝 Text | `input_text.zendure_status` | Zendure Status | min 0, max 60 | Wird von der Automation pro Branch gesetzt; `sensor.zendure_steuerung_status` liest hieraus |
+| Typ | Entity-ID                                     | Name                           | Werte / Einstellung                                          | Zweck                                                                                                                                                           |
+|---|-----------------------------------------------|--------------------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 🔢 Zahl | `input_number.pv_peak_leistung`               | PV Peak Leistung               | min 0, max 20000, Schritt 100, Einheit `W`, Default **6800** | Bezugsgröße für Prognose-Schwellen (PV-Anlagengröße in W)                                                                                                       |
+| 🔘 Schalter | `input_boolean.zendure_verbrauchsprognose`    | Zendure Verbrauchsprognose     | Default an                                                   | Aktiviert das zusätzliche Verbrauchs-Cap im Template-Sensor `Zendure Max Entladeleistung` (drosselt bei knapper Reserve auf 200 W). Aus = nur SoC + PV-Prognose |
+| 📝 Text | `input_text.zendure_status`                   | Zendure Status                 | min 0, max 60                                                | Wird von der Automation pro Branch gesetzt; `sensor.zendure_steuerung_status` liest hieraus                                                                     |
+| 🔢 Zahl | `input_number.zendure_grenze_ladeleistung`    | Zendure Grenze Ladeleistung    | min 100, max 1200, Schritt 50, Einheit `W`, Default **800**  | Obergrenze für Ladeleistung                                                                                                                                     |
+| 🔢 Zahl | `input_number.zendure_grenze_entladeleistung` | Zendure Grenze Entladeleistung | min 100, max 1000, Schritt 50, Einheit `W`, Default **800**  | Obergrenze für Entladeleistung                                                                                                                                  |
 
 > **Wichtig**: Solange `input_text.zendure_status` nicht existiert, schlägt jeder `set_value`-Aufruf in der Automation fehl und der Branch bricht ab. Helper **zuerst** anlegen, dann YAML neu laden.
 
@@ -79,6 +81,24 @@ input_text:
     min: 0
     max: 60
     initial: "🟰 Passiv (Deadband)"
+
+input_number:
+  zendure_grenze_ladeleistung:
+    name: Zendure Grenze Ladeleistung
+    min: 100
+    max: 1200
+    step: 50
+    unit_of_measurement: W
+    initial: 800
+
+input_number:
+  zendure_grenze_entladeleistung:
+    name: Zendure Grenze Entladeleistung
+    min: 100
+    max: 1000
+    step: 50
+    unit_of_measurement: W
+    initial: 800
 ```
 
 ---
