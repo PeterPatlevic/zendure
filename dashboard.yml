@@ -1,0 +1,158 @@
+views:
+  - type: sections
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Leistung
+            heading_style: title
+            icon: mdi:transmission-tower
+          - type: energy-distribution
+        column_span: 1
+      - type: grid
+        cards:
+          - type: heading
+            heading_style: title
+            heading: Netz & PV
+            icon: mdi:home-lightning-bolt-outline
+          - graph: line
+            type: sensor
+            entity: sensor.sn_3007669104_metering_power_supplied
+            detail: 1
+            name: Wird abgegeben
+            unit: W
+            icon: mdi:transmission-tower-import
+          - graph: line
+            type: sensor
+            entity: sensor.sn_3007669104_metering_power_absorbed
+            detail: 1
+            name: Wird bezogen
+            unit: W
+            icon: mdi:transmission-tower-export
+          - graph: line
+            type: sensor
+            entity: sensor.energy_production_today_remaining
+            detail: 1
+            name: Prognose Resttag
+            icon: mdi:solar-power-variant-outline
+          - graph: line
+            type: sensor
+            entity: sensor.energy_production_tomorrow
+            detail: 1
+            name: Prognose Morgen
+            icon: mdi:solar-power-variant
+          - graph: line
+            type: sensor
+            entity: sensor.sn_3007669104_pv_power
+            detail: 1
+            name: PV Leistung
+            icon: mdi:solar-power
+            unit: W
+          - type: entity
+            entity: input_number.pv_peak_leistung
+            state_color: false
+        column_span: 1
+      - type: grid
+        cards:
+          - type: heading
+            heading: Speicher
+            heading_style: title
+            icon: mdi:battery
+          - graph: line
+            type: sensor
+            entity: sensor.solarflow_2400_ac_output_pack_power
+            detail: 1
+            name: Ladeleistung
+            icon: mdi:battery-arrow-up
+            unit: W
+          - graph: line
+            type: sensor
+            entity: sensor.solarflow_2400_ac_pack_input_power
+            detail: 1
+            name: Entladeleistung
+            icon: mdi:battery-arrow-down
+            unit: W
+          - graph: line
+            type: sensor
+            entity: sensor.solarflow_2400_ac_electric_level
+            detail: 1
+            name:
+              type: entity
+          - graph: line
+            type: sensor
+            entity: sensor.solarflow_2400_ac_pack_state
+            detail: 1
+            icon: mdi:battery-charging
+            unit: W
+            name: Status
+          - graph: line
+            type: sensor
+            detail: 1
+            entity: sensor.solarflow_2400_ac_available_kwh
+            name:
+              type: entity
+          - graph: line
+            type: sensor
+            detail: 1
+            entity: sensor.solarflow_2400_ac_remaining_time
+            name:
+              type: entity
+      - type: grid
+        cards:
+          - type: heading
+            heading: Entscheidung & Einstellung
+            heading_style: title
+          - type: entities
+            title: ''
+            entities:
+              - entity: sensor.zendure_steuerung_status
+                name: Steuerung Status
+                secondary_info: last-changed
+              - entity: sensor.zendure_max_ladeleistung_status
+                name: Entscheidung zum Laden
+                secondary_info: last-changed
+              - entity: sensor.zendure_max_entladeleistung_status
+                name: Entscheidung zum Entladen
+                secondary_info: last-changed
+              - entity: sensor.zendure_max_ladeleistung
+                name: Maximale berechnete Ladeleistung
+                secondary_info: last-changed
+              - entity: sensor.zendure_max_entladeleistung
+                name: Maximale berechnete Entadeleistung
+                secondary_info: last-changed
+            grid_options:
+              columns: 18
+              rows: auto
+          - type: entities
+            entities:
+              - entity: input_number.zendure_grenze_ladeleistung
+                name: Obergrenze Ladeleistung
+                secondary_info: last-changed
+              - entity: input_number.zendure_grenze_entladeleistung
+                name: Obergrenze Entladeleistung
+                secondary_info: last-changed
+              - entity: input_boolean.zendure_verbrauchsprognose
+                name: Verbrauchs und Wetterprognose berücksichtigen
+                secondary_info: last-changed
+            grid_options:
+              columns: 18
+              rows: auto
+        column_span: 3
+      - type: grid
+        cards:
+          - type: heading
+            heading: Netzleistung & Regelung
+            heading_style: title
+          - type: history-graph
+            entities:
+              - sensor.nettoleistung_netz
+              - sensor.nettoleistung_netz_mittelwert
+              - sensor.solarflow_2400_ac_bat_in_out
+            grid_options:
+              columns: 36
+              rows: auto
+            hours_to_show: 1
+        column_span: 3
+    badges: []
+    max_columns: 3
+    cards: []
