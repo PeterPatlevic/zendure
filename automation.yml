@@ -17,8 +17,7 @@ trace:
 
 trigger:
   - platform: time_pattern
-    minutes: "/1"
-    seconds: "0"
+    seconds: "/15"
 
 variables:
   # Geglättete Netto-Netzleistung (bereits speicher bereinigt, s. template.yml)
@@ -76,7 +75,7 @@ action:
                     target:
                       entity_id: number.solarflow_2400_ac_input_limit
                     data:
-                      value: "{{ min(netz_abs, max_lade) | int }}"
+                      value: "{{ min(netz - deadband, max_lade) | int }}"
 
               # 🆘 Notladen aus Netz: Heute & Morgen schlecht & SoC kritisch
               # Nur wenn keine Einspeisung anliegt (sehr selten nachts, aber abgesichert).
@@ -103,17 +102,17 @@ action:
                     data:
                       value: "{{ [notlade_power, max_lade] | min | int }}"
 
-              # Morgen viel PV erwartet -> Platz schaffen -> 110% Leistung um evtl. Schwankungen auszugleichen
+              # Morgen viel PV erwartet -> Platz schaffen -> Leistung + Deadband um evtl. Schwankungen auszugleichen
               - conditions: >
                   {{ prog_morgen_hoch
                      and soc > soc_min
-                     and netz < -deadband }}
+                     and netz < deadband }}
                 sequence:
                   - service: input_text.set_value
                     target:
                       entity_id: input_text.zendure_status
                     data:
-                      value: "🌙 Nacht – Platz schaffen (110% Netz Bezug)"
+                      value: "🌙 Nacht – Platz schaffen (Netz Bezug + Deadband)"
                   - service: select.select_option
                     target:
                       entity_id: select.solarflow_2400_ac_ac_mode
@@ -123,7 +122,7 @@ action:
                     target:
                       entity_id: number.solarflow_2400_ac_output_limit
                     data:
-                      value: "{{ min(netz_abs * 11 / 10, max_entlade) | int }}"
+                      value: "{{ min(netz_abs + deadband, max_entlade) | int }}"
 
               # Morgen wenig PV -> Reserve über soc_min halten, 80% Leistung
               - conditions: >
@@ -208,7 +207,7 @@ action:
             target:
               entity_id: number.solarflow_2400_ac_output_limit
             data:
-              value: "{{ min(netz_abs, max_entlade) | int }}"
+              value: "{{ min(netz_abs + deadband, max_entlade) | int }}"
 
     # ===========================================================================
     # 🟰 Default – Deadband oder SoC-Grenze: Speicher passiv

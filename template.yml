@@ -309,27 +309,37 @@ template:
       - name: "Verbrauch Morgen"
         unit_of_measurement: "W"
         availability: "{{ 6 <= now().hour < 10 }}"
-        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+        state: >
+          {% set netz = states('sensor.nettoleistung_netz') | int %}
+          {{ min(netz, 0) | abs }}
 
       - name: "Verbrauch Vormittag"
         unit_of_measurement: "W"
         availability: "{{ 10 <= now().hour < 12 }}"
-        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+        state: >
+          {% set netz = states('sensor.nettoleistung_netz') | int %}
+          {{ min(netz, 0) | abs }}
 
       - name: "Verbrauch Nachmittag"
         unit_of_measurement: "W"
         availability: "{{ 12 <= now().hour < 17 }}"
-        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+        state: >
+          {% set netz = states('sensor.nettoleistung_netz') | int %}
+          {{ min(netz, 0) | abs }}
 
       - name: "Verbrauch Abend"
         unit_of_measurement: "W"
         availability: "{{ 17 <= now().hour < 22 }}"
-        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+        state: >
+          {% set netz = states('sensor.nettoleistung_netz') | int %}
+          {{ min(netz, 0) | abs }}
 
       - name: "Verbrauch Nacht"
         unit_of_measurement: "W"
         availability: "{{ now().hour >= 22 or now().hour < 6 }}"
-        state: "{{ states('sensor.sn_3007669104_metering_power_absorbed') | float(0) }}"
+        state: >
+          {% set netz = states('sensor.nettoleistung_netz') | int %}
+          {{ min(netz, 0) | abs }}
 
       # Erwarteter Verbrauch der NÄCHSTEN Tageszeit (7-Tage-Durchschnitt)
       - name: "Erwarteter Verbrauch naechste Periode"
