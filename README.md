@@ -45,13 +45,12 @@ Die Speicherkompensation stellt sicher, dass `netz` den **wahren Haushaltsbedarf
 Vor dem ersten Start müssen folgende Helper in Home Assistant angelegt werden  
 (**Einstellungen → Geräte & Dienste → Helfer → Helfer erstellen**):
 
-| Typ | Entity-ID                                     | Name                           | Werte / Einstellung                                          | Zweck                                                                                                                                                           |
-|---|-----------------------------------------------|--------------------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 🔢 Zahl | `input_number.pv_peak_leistung`               | PV Peak Leistung               | min 0, max 20000, Schritt 100, Einheit `W`, Default **6800** | Bezugsgröße für Prognose-Schwellen (PV-Anlagengröße in W)                                                                                                       |
-| 🔘 Schalter | `input_boolean.zendure_verbrauchsprognose`    | Zendure Verbrauchsprognose     | Default an                                                   | Aktiviert das zusätzliche Verbrauchs-Cap im Template-Sensor `Zendure Max Entladeleistung` (drosselt bei knapper Reserve auf 200 W). Aus = nur SoC + PV-Prognose |
-| 📝 Text | `input_text.zendure_status`                   | Zendure Status                 | min 0, max 60                                                | Wird von der Automation pro Branch gesetzt; `sensor.zendure_steuerung_status` liest hieraus                                                                     |
-| 🔢 Zahl | `input_number.zendure_grenze_ladeleistung`    | Zendure Grenze Ladeleistung    | min 100, max 1200, Schritt 50, Einheit `W`, Default **800**  | Obergrenze für Ladeleistung                                                                                                                                     |
-| 🔢 Zahl | `input_number.zendure_grenze_entladeleistung` | Zendure Grenze Entladeleistung | min 100, max 1000, Schritt 50, Einheit `W`, Default **800**  | Obergrenze für Entladeleistung                                                                                                                                  |
+| Typ | Entity-ID                                  | Name                              | Einstellung         | Zweck                                  |
+|---|--------------------------------------------|------------------------------------|-------------------|----------------------------------------|
+| 🔢 Zahl | `input_number.pv_peak_leistung`            | PV Peak Leistung                   | min 0, max 20000; Default **6800** W | Bezugsgröße für Prognose-Schwellen     |
+| 🔘 Schalter | `input_boolean.zendure_verbrauchsprognose` | Zendure Verbrauchsprognose         | Default an         | Verbrauchs-Cap aktivieren (ja/nein)    |
+| 🔘 Schalter | `input_boolean.zendure_notladen_enabled`   | Zendure Notladen                   | Default an         | Notladen aus Netz aktivieren (ja/nein) |
+| 📝 Text | `input_text.zendure_status`                | Zendure Status                     | min 0, max 60      | wird von Automation pro Branch gesetzt |
 
 > **Wichtig**: Solange `input_text.zendure_status` nicht existiert, schlägt jeder `set_value`-Aufruf in der Automation fehl und der Branch bricht ab. Helper **zuerst** anlegen, dann YAML neu laden.
 
@@ -75,30 +74,17 @@ input_boolean:
     icon: mdi:chart-timeline-variant
     initial: true
 
+  zendure_notladen_enabled:
+    name: Zendure Notladen
+    icon: mdi:battery-charging-wireless-alert
+    initial: true
+
 input_text:
   zendure_status:
     name: Zendure Status
     min: 0
     max: 60
     initial: "🟰 Passiv (Deadband)"
-
-input_number:
-  zendure_grenze_ladeleistung:
-    name: Zendure Grenze Ladeleistung
-    min: 100
-    max: 1200
-    step: 50
-    unit_of_measurement: W
-    initial: 800
-
-input_number:
-  zendure_grenze_entladeleistung:
-    name: Zendure Grenze Entladeleistung
-    min: 100
-    max: 1000
-    step: 50
-    unit_of_measurement: W
-    initial: 800
 ```
 
 ---
@@ -109,35 +95,68 @@ Trigger: jede Minute (`time_pattern /1`), `mode: single`.
 
 ### Branches (Reihenfolge = Priorität)
 
-| # | Branch | Bedingung | Aktion                                            |
-|---|---|---|---------------------------------------------------|
-| 1 | 🌙 Nacht – Notladen | `ist_nacht` + heute & morgen schlecht + `soc < soc_min + 10` | Mode `input`, 200 W aus Netz                      |
-| 2 | 🌙 Nacht – Platz schaffen | `ist_nacht` + `prog_morgen_hoch` + `soc > soc_min` + `netz < -50` | Mode `output`, `min(\|110% netz\|, max_entlade)` |
-| 3 | 🌙 Nacht – Schonen | `ist_nacht` + morgen schlecht + `soc > soc_min + 15` + `netz < -50` | Mode `output`, `min(\|80% netz\|, max_entlade)` |
-| 4 | 🌙 Nacht – Default | `ist_nacht` (kein Match oben) | Limits = 0 (passiv)                               |
-| 5 | ☀️ Tag – Überschuss | `netz > 50` + `soc < soc_max` | Mode `input`, `min(\|netz\|, max_lade)` |
-| 6 | 🟢 Tag – Bezug | `netz < -50` + `soc > soc_min` | Mode `output`, `min(\|netz\|, max_entlade)` |
-| 7 | 🟰 Default | Deadband oder SoC-Grenze | Limits = 0 (passiv)                               |
+| # | Branch | Bedingung | Aktion |
+|---|---|---|---|
+| 1 | 🌙 Nacht – Laden | `ist_nacht` + `netz > deadband` (Einspeisung nachts) | Mode `input`, `min(\|netz\|, max_lade)` |
+| 2 | 🆘 Nacht – Notladen | `ist_nacht` + `notlade_enabled` + heute & morgen schlecht + `soc < soc_min + 10` + kein Netzüberschuss | Mode `input`, 200 W aus Netz |
+| 3 | 🌙 Nacht – Platz schaffen | `ist_nacht` + `prog_morgen_hoch` + `soc > soc_min` + `netz < -deadband` | Mode `output`, `min(110% \|netz\|, max_entlade)` |
+| 4 | 🌙 Nacht – Schonen | `ist_nacht` + morgen schlecht + `soc > soc_min + 15` + `netz < -deadband` | Mode `output`, `min(80% \|netz\|, max_entlade)` |
+| 5 | 🌙 Nacht – Passiv | `ist_nacht` (kein Match oben) | Limits = 0 |
+| 6 | ☀️ Tag – Laden | Tag + `netz > deadband` + `soc < soc_max` | Mode `input`, `min(\|netz\|, max_lade)` |
+| 7 | 🟢 Tag – Entladen | Tag + `netz < -deadband` + `soc > soc_min` | Mode `output`, `min(\|netz\|, max_entlade)` |
+| 8 | 🟰 Passiv | Deadband oder SoC-Grenze | Limits = 0 |
 
-**Tag-Entladung (Branch 6):**  
-Einheitliche Regel: `min(|netz|, max_entlade)`. Die gesamte Drosselung (SoC, Prognose, Reserve, optional Verbrauchsprognose) lebt im Template-Sensor `Zendure Max Entladeleistung` – siehe unten. Der Branch ist damit „dumm" und nur Ausführer.
+**Nacht-Laden Branch (erste Nacht-Bedingung):**  
+Wenn nachts zufällig PV-Strom eingespeist wird (unmöglich, aber ein Sicherheits-Catch), wird dieser sofort geladen statt auf einen anderen Branch zu warten.
+
+**Tag-Entladung (Branch 7):**  
+Einheitliche Regel: `min(|netz|, max_entlade)`. Die gesamte Drosselung (SoC, Prognose, Reserve, optional Verbrauchs-Cap) lebt im Template-Sensor `Zendure Max Entladeleistung` – siehe unten. Der Branch ist damit „dumm" und nur Ausführer.
 
 ### Tuning-Variablen
 
-| Variable | Default | Funktion |
-|---|---|---|
-| `deadband` | 50 W | Hysterese gegen Pendeln |
-| `reserve_offset` | 15 % | Nacht-Reserve bei schlechter Prognose |
-| `notlade_offset` | 10 % | Schwelle über `soc_min` für Notladen |
-| `notlade_power` | 200 W | Notlade-Leistung aus dem Netz |
+Die Variablen sind in der Automation definiert und lesen teilweise aus Input-Helfer, teilweise sind sie hardcoded:
+
+| Variable | Quelle | Default | Funktion |
+|---|---|---|---|
+| `deadband` | `sensor.zendure_deadband` (placeholder) oder hardcoded | 50 W | Hysterese gegen Pendeln um Null |
+| `reserve_offset` | hardcoded | 15 % | Nacht-Reserve über `soc_min` bei schlechter Prognose |
+| `notlade_offset` | hardcoded | 10 % | Schwelle über `soc_min` für Notladen-Auslösung |
+| `notlade_power` | hardcoded | 200 W | Notlade-Leistung aus dem Netz |
+| `notlade_enabled` | `input_boolean.zendure_notladen_enabled` | an | Schalter zum Notladen aktivieren/deaktivieren |
+
+**Hinweis:** `sensor.zendure_deadband` existiert derzeit nicht in der Konfiguration. Der Wert wird auf den Default 50 W zurückfallen. Wenn man ihn später hinzufügen möchte (als `input_number` oder berechneter Sensor), wird er automatisch genutzt.
 
 ---
 
 ## Dynamische Leistungs-Caps (`template.yml`)
 
-Wert + Status + Icon werden im **gleichen Template-Sensor** berechnet. Der Wert ist der `state`, der Status-Text liegt als Attribut `status`, das Icon als Attribut `icon`. Die separaten Status-Sensoren sind nur dünne Reader (`state_attr(... 'status')` / `state_attr(... 'icon')`).
+Wert + Status + Icon werden im **gleichen Template-Sensor** berechnet. Der Wert ist der `state`, Status-Text und Icon liegen als Attribute (`status`, `icon`). Die separaten Status-Sensoren sind nur dünne Reader (`state_attr(... 'status')` / `state_attr(... 'icon')`).
 
-Innerhalb eines Wert-Sensors steht die if-elif-Kette dreimal (state, attr.status, attr.icon) – HA evaluiert jedes Template eigenständig. Alle drei Blöcke sind aber **zeilengleich strukturiert**: jeder Branch setzt `ns.cap`, `ns.status` und `ns.icon` in einer Zeile, sodass Drift sofort sichtbar wäre.
+**Struktur eines Wert-Sensors:**
+```yaml
+- name: "Zendure Max Ladeleistung"
+  unit_of_measurement: "W"
+  state: >          # ← die Kapazität in W
+    {% set base = 800 %}
+    ...
+    {% if soc >= soc_max %}
+      0
+    {% elif not prog_heute %}
+      {{ base }}
+    ...
+    {% endif %}
+  attributes:       # ← Status und Icon
+    status: >
+      {% set base = 800 %}
+      ...
+      {% if soc >= soc_max %}
+        🚫 Voll – kein Laden
+      ...
+    icon: >
+      ...
+```
+
+Alle drei Blöcke (state, attr.status, attr.icon) **enthalten die gleiche if-elif-Struktur** in der gleichen Reihenfolge – so bleibt die Logik konsistent und Drift ist sofort erkennbar.
 
 | Wert-Sensor (W) | Status-Sensor (Text + Icon) |
 |---|---|
@@ -162,12 +181,12 @@ Kernfrage: *"Wie schnell laden?"* – Bei schlechter Prognose aggressiv, bei gut
 Kernfrage: *"Wie viel können wir uns leisten?"* – Prognose bestimmt Aggressivität, SoC-Reserve drosselt.
 
 | Bedingung | Leistung | Status |
-|---|---|---|
-| Basiswert | 800 W | – |
+|---|-----|--------|
+| Basiswert | 800 W | –      |
 | `soc <= soc_min` | 0 W | 🚫 Leer – kein Entladen |
 | Morgen kommt PV & Reserve > 20% | 1/1 | 🚀 Voll – Morgen kommt PV |
 | Heute kommt noch PV & Reserve > 15% | 3/4 | 🟢 Moderat – Heute kommt PV |
-| Schlechte Prognose, Reserve > 30% | 1/2 | 🟡 Halb – viel Reserve |
+| Schlechte Prognose, Reserve > 30% | 2/3 | 🟡 2/3 – viel Reserve |
 | Schlechte Prognose, Reserve > 10% | 1/4 | 🟠 Vorsichtig – wenig Reserve |
 | Knapp über soc_min | 1/6 | 🔴 Notreserve – knapp über Min |
 | Verbrauchs-Cap aktiv (s.u.) | max 200 W (= base/4) | 🛡️ Verbrauchs-Cap (25%) |
@@ -199,7 +218,26 @@ States sind Strings `'True'` / `'False'` (Großschreibung!).
 
 ---
 
-## Nachtsensor
+## Steuer-Status-Sensor
+
+`sensor.zendure_steuerung_status` spiegelt **exakt** den zuletzt ausgeführten Branch der Automation.
+
+**Quellkette:**
+1. Jeder `choose`-Branch in `automation.yml` setzt als **erste Aktion**: `input_text.zendure_status = "..."`
+2. `sensor.zendure_steuerung_status` (Template) liest diesen Wert
+3. Das Icon (mdi:*) wird basierend auf Keywords im Status gesetzt (Notladen, Platz schaffen, Nacht – Passiv, etc.)
+
+**Status-Strings der Branches:**
+- `🌙 Nacht – Laden (Netz > Deadband)` → mdi:battery-charging-wireless
+- `🆘 Nacht – Notladen` → mdi:battery-charging-wireless-alert
+- `🌙 Nacht – Platz schaffen (110% Netz Bezug)` → mdi:battery-arrow-down
+- `🌙 Nacht – Schonend entladen (80% Netz Bezug)` → mdi:battery-arrow-down-outline
+- `🌙 Nacht – Passiv` → mdi:sleep
+- `☀️ Tag – Laden (100% Netz Einspeisung)` → mdi:solar-power
+- `🟡 Tag – Entladen (100% Netz Bezug)` → mdi:battery-minus
+- `🟰 Passiv (Deadband)` → mdi:pause-circle-outline
+
+---
 
 `binary_sensor.ist_nacht`: **on**, wenn Sonnenaufgang + 2h noch vor Sonnenuntergang − 3h liegt.  
 → Nacht beginnt früher (3h vor Sunset) und endet später (2h nach Sunrise).
@@ -229,14 +267,33 @@ States sind Strings `'True'` / `'False'` (Großschreibung!).
 - `select.solarflow_2400_ac_ac_mode` (`input` / `output`)
 - `sensor.solarflow_2400_ac_output_pack_power` (Ist-Entladung)
 - `sensor.solarflow_2400_ac_pack_input_power` (Ist-Ladung)
+- `sensor.solarflow_2400_ac_total_kwh` (Speicherkapazität für Verbrauchsprognose)
+
+**Dynamische Leistungs-Caps (Template):**
+- `sensor.zendure_max_ladeleistung` (Wert in W + Attribute: `status`, `icon`)
+- `sensor.zendure_max_entladeleistung` (Wert in W + Attribute: `status`, `icon`)
+- `sensor.zendure_max_ladeleistung_status` (Reader: zeigt `status` + `icon`)
+- `sensor.zendure_max_entladeleistung_status` (Reader: zeigt `status` + `icon`)
+
+**Steuer-Status (Template):**
+- `sensor.zendure_steuerung_status` (aktueller Branch + dynamisches Icon)
+- `input_text.zendure_status` (Helper, wird von jedem Branch gesetzt)
 
 **Forecast Solar:**
 - `sensor.energy_next_hour`
 - `sensor.energy_production_today_remaining`
 - `sensor.energy_production_tomorrow`
 
+**Prognose-Sensoren (Template):**
+- `sensor.pv_prognose_stunde_hoch` (True/False)
+- `sensor.pv_prognose_heute_hoch` (True/False)
+- `sensor.pv_prognose_morgen_hoch` (True/False)
+
 **Sonstige:**
 - `input_number.pv_peak_leistung` (6800 für 6,8 kWp)
+- `input_boolean.zendure_verbrauchsprognose` (Verbrauchs-Cap aktivieren)
+- `input_boolean.zendure_notladen_enabled` (Notladen-Feature aktivieren)
+- `binary_sensor.ist_nacht` (True = Nacht, False = Tag)
 - `sensor.sun_next_rising` / `sensor.sun_next_setting`
 
 ---

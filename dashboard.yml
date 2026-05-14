@@ -31,6 +31,18 @@ views:
             icon: mdi:transmission-tower-export
           - graph: line
             type: sensor
+            entity: sensor.sn_3007669104_pv_power
+            detail: 1
+            name: PV Leistung
+            icon: mdi:solar-power
+            unit: W
+          - type: entity
+            entity: sensor.sn_3007669104_pv_gen_meter
+            state_color: false
+            name: Insgesamt Produziert
+            icon: mdi:chart-bar
+          - graph: line
+            type: sensor
             entity: sensor.energy_production_today_remaining
             detail: 1
             name: Prognose Resttag
@@ -41,16 +53,6 @@ views:
             detail: 1
             name: Prognose Morgen
             icon: mdi:solar-power-variant
-          - graph: line
-            type: sensor
-            entity: sensor.sn_3007669104_pv_power
-            detail: 1
-            name: PV Leistung
-            icon: mdi:solar-power
-            unit: W
-          - type: entity
-            entity: input_number.pv_peak_leistung
-            state_color: false
         column_span: 1
       - type: grid
         cards:
@@ -120,20 +122,29 @@ views:
               - entity: sensor.zendure_max_entladeleistung
                 name: Maximale berechnete Entadeleistung
                 secondary_info: last-changed
+              - entity: sensor.erwarteter_verbrauch_naechste_periode
             grid_options:
               columns: 18
               rows: auto
           - type: entities
             entities:
+              - entity: input_number.pv_peak_leistung
+                secondary_info: last-changed
               - entity: input_number.zendure_grenze_ladeleistung
                 name: Obergrenze Ladeleistung
                 secondary_info: last-changed
               - entity: input_number.zendure_grenze_entladeleistung
                 name: Obergrenze Entladeleistung
                 secondary_info: last-changed
+              - entity: input_number.zendure_deadband
+                name: Tote Zone
+                secondary_info: last-changed
               - entity: input_boolean.zendure_verbrauchsprognose
                 name: Verbrauchs und Wetterprognose berücksichtigen
                 secondary_info: last-changed
+              - entity: input_boolean.zendure_notladen_enabled
+                secondary_info: last-changed
+                name: Notladen in der Nacht
             grid_options:
               columns: 18
               rows: auto
@@ -145,9 +156,11 @@ views:
             heading_style: title
           - type: history-graph
             entities:
-              - sensor.nettoleistung_netz
-              - sensor.nettoleistung_netz_mittelwert
-              - sensor.solarflow_2400_ac_bat_in_out
+              - entity: sensor.nettoleistung_netz
+              - entity: sensor.nettoleistung_netz_mittelwert
+              - entity: sensor.solarflow_2400_ac_bat_in_out
+              - entity: sensor.sn_3007669104_pv_power
+                name: PV Leistung
             grid_options:
               columns: 36
               rows: auto

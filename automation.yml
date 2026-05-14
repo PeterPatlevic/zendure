@@ -9,7 +9,7 @@
 #   - Schlechte Prognose -> Speicher schonen (Reserve halten)
 #   - Gute Prognose -> Speicher voll nutzen
 ###############################################################################
-alias: Zendure SolarFlow AC – Automatik mit Prognose 0.3.2
+alias: Zendure SolarFlow AC – Automatik mit Prognose 0.4.0
 mode: single
 
 trace:
@@ -26,10 +26,10 @@ variables:
   netz:        "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) }}"
   netz_abs:    "{{ states('sensor.nettoleistung_netz_mittelwert') | float(0) | abs }}"
   soc:         "{{ states('sensor.solarflow_2400_ac_electric_level') | float(0) }}"
-  soc_min:     "{{ states('sensor.solarflow_2400_ac_min_soc')       | float(10) }}"
-  soc_max:     "{{ states('number.solarflow_2400_ac_soc_set')       | float(80) }}"
-  max_lade:    "{{ states('sensor.zendure_max_ladeleistung')        | int(800) }}"
-  max_entlade: "{{ states('sensor.zendure_max_entladeleistung')     | int(800) }}"
+  soc_min:     "{{ states('sensor.solarflow_2400_ac_min_soc') | float(10) }}"
+  soc_max:     "{{ states('number.solarflow_2400_ac_soc_set') | float(80) }}"
+  max_lade:    "{{ states('sensor.zendure_max_ladeleistung') | int(800) }}"
+  max_entlade: "{{ states('sensor.zendure_max_entladeleistung') | int(800) }}"
 
   # Prognose-Flags: states sind Strings 'True'/'False' (s. template.yml)
   ist_nacht:        "{{ is_state('binary_sensor.ist_nacht', 'on') }}"
@@ -37,12 +37,15 @@ variables:
   prog_morgen_hoch: "{{ is_state('sensor.pv_prognose_morgen_hoch', 'True') }}"
 
   # Hysterese um 0 W, verhindert Pendeln zwischen input/output
-  deadband: 50
+
+  deadband: "{{ states('sensor.zendure_deadband') | int(50) }}"
   # Mindestreserve über soc_min bei schlechter Morgen-Prognose
   reserve_offset: 15
   # Notlade-Schwelle (über soc_min) bei schlechter Heute+Morgen-Prognose
   notlade_offset: 10
   notlade_power: 200
+  # Notladen-Feature aktivieren (Helper-Toggle)
+  notlade_enabled: "{{ is_state('input_boolean.zendure_notladen_enabled', 'on') }}"
 
 action:
   - choose:
@@ -56,11 +59,30 @@ action:
       - conditions: "{{ ist_nacht }}"
         sequence:
           - choose:
+              - conditions: >
+                  {{ netz > deadband }}
+                sequence:
+                  - service: input_text.set_value
+                    target:
+                      entity_id: input_text.zendure_status
+                    data:
+                      value: "🌙 Nacht – Laden (Netz > Deadband)"
+                  - service: select.select_option
+                    target:
+                      entity_id: select.solarflow_2400_ac_ac_mode
+                    data:
+                      option: "input"
+                  - service: number.set_value
+                    target:
+                      entity_id: number.solarflow_2400_ac_input_limit
+                    data:
+                      value: "{{ min(netz_abs, max_lade) | int }}"
 
               # 🆘 Notladen aus Netz: Heute & Morgen schlecht & SoC kritisch
               # Nur wenn keine Einspeisung anliegt (sehr selten nachts, aber abgesichert).
               - conditions: >
-                  {{ not prog_heute_hoch
+                  {{ notlade_enabled
+                     and not prog_heute_hoch
                      and not prog_morgen_hoch
                      and soc < (soc_min + notlade_offset)
                      and netz < deadband }}
@@ -170,7 +192,7 @@ action:
       # (SoC/Prognose/Reserve-abhängig). Hier: einfach 100% des Bezugs decken,
       # gecapped durch max_entlade. Das vermeidet doppelte Drosselung.
       # =========================================================================
-      - conditions: "{{ netz < -deadband and soc > soc_min }}"
+      - conditions: "{{ netz < deadband and soc > soc_min }}"
         sequence:
           - service: input_text.set_value
             target:
